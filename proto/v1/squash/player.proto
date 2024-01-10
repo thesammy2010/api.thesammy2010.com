@@ -14,7 +14,9 @@ message SquashPlayer {
 
 // CREATE
 message CreateSquashPlayerRequest {
-    SquashPlayer squash_player = 1;
+  string name = 1;
+  string email_address = 2;
+  bytes profile_picture = 3;
 }
 message CreateSquashPlayerResponse {
     string id = 1;
@@ -58,28 +60,28 @@ service SquashPlayerService {
   rpc CreateSquashPlayer(CreateSquashPlayerRequest) returns (CreateSquashPlayerResponse) {
     option(google.api.http) = {
       post: "/v1/squash/players",
-      body: "squash_player",
+      body: "*",
     };
   }
-//  rpc GetSquashPlayer(GetSquashPlayerRequest) returns (GetSquashPlayerResponse) {
-//    option(google.api.http) = {
-//      post: "/v1/squash/players/{id}",
-//    };
-//  }
-//  rpc ListSquashPlayers(GetAllSquashPlayersRequest) returns (GetSquashPlayerResponse) {
-//    option(google.api.http) = {
-//      get: "/v1/squash/players",
-//    };
-//  }
-//  rpc UpdateSquashPlayer(UpdateSquashPlayerRequest) returns (UpdateSquashPlayerResponse) {
-//    option(google.api.http) = {
-//      patch: "/v1/squash/players/{id}",
-//      body: "*"
-//    };
-//  }
-//  rpc DeleteSquashPlayer(DeleteSquashPlayerRequest) returns(DeleteSquashPlayerResponse) {
-//    option(google.api.http) = {
-//      delete: "/v1/squash/players/{id}",
-//    };
-//  };
+  rpc GetSquashPlayer(GetSquashPlayerRequest) returns (GetSquashPlayerResponse) {
+    option(google.api.http) = {
+      post: "/v1/squash/players/{id}",
+    };
+  }
+  rpc ListSquashPlayers(GetAllSquashPlayersRequest) returns (GetSquashPlayerResponse) {
+    option(google.api.http) = {
+      get: "/v1/squash/players",
+    };
+  }
+  rpc UpdateSquashPlayer(UpdateSquashPlayerRequest) returns (UpdateSquashPlayerResponse) {
+    option(google.api.http) = {
+      patch: "/v1/squash/players/{id}",
+      body: "*"
+    };
+  }
+  rpc DeleteSquashPlayer(DeleteSquashPlayerRequest) returns(DeleteSquashPlayerResponse) {
+    option(google.api.http) = {
+      delete: "/v1/squash/players/{id}",
+    };
+  };
 }
