@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+import "google/api/annotations.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "github.com/thesammy2010/api.thesammy2010.com/proto";
+
+message SquashPlayer {
+  string id = 1;
+  string name = 2;
+  string email_address = 3;
+  bytes profile_picture = 4;
+}
+
+// CREATE
+message CreateSquashPlayerRequest {
+  string name = 1;
+  string email_address = 2;
+  bytes profile_picture = 3;
+}
+message CreateSquashPlayerResponse {
+    string id = 1;
+}
+
+// READ 1
+message GetSquashPlayerRequest {
+  string id = 1;
+}
+message GetSquashPlayerResponse {
+  SquashPlayer squash_player = 2;
+}
+
+// READ ALL
+message GetAllSquashPlayersRequest {}
+message GetAllSquashPlayersResponse {
+  repeated SquashPlayer squash_players = 1;
+}
+
+// UPDATE
+message UpdateSquashPlayerRequest {
+  string id = 1;
+  google.protobuf.StringValue name = 2;
+  google.protobuf.StringValue email_address = 3;
+  google.protobuf.BytesValue profile_picture = 4;
+}
+message UpdateSquashPlayerResponse {
+  SquashPlayer squash_player = 1;
+}
+
+// DELETE
+message DeleteSquashPlayerRequest {
+  string id = 2;
+}
+message DeleteSquashPlayerResponse {
+  string id = 3;
+}
+
+// service
+service SquashPlayerService {
+  rpc CreateSquashPlayer(CreateSquashPlayerRequest) returns (CreateSquashPlayerResponse) {
+    option(google.api.http) = {
+      post: "/v1/squash/players";
+      body: "*";
+    };
+  }
+  rpc GetSquashPlayer(GetSquashPlayerRequest) returns (GetSquashPlayerResponse) {
+    option(google.api.http) = {
+      post: "/v1/squash/players/{id}";
+    };
+  }
+  rpc ListSquashPlayers(GetAllSquashPlayersRequest) returns (GetSquashPlayerResponse) {
+    option(google.api.http) = {
+      get: "/v1/squash/players";
+    };
+  }
+  rpc UpdateSquashPlayer(UpdateSquashPlayerRequest) returns (UpdateSquashPlayerResponse) {
+    option(google.api.http) = {
+      patch: "/v1/squash/players/{id}";
+      body: "*";
+    };
+  }
+  rpc DeleteSquashPlayer(DeleteSquashPlayerRequest) returns(DeleteSquashPlayerResponse) {
+    option(google.api.http) = {
+      delete: "/v1/squash/players/{id}";
+    };
+  };
+}
