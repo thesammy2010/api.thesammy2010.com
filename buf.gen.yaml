@@ -1,8 +1,6 @@
 version: v1
 managed:
   enabled: true
-#  go_package_prefix:
-#    default: github.com/thesammy2010/api.thesammy2010.com/proto
 plugins:
   - plugin: go
     out: .

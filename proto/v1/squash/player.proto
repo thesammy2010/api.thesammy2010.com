@@ -59,29 +59,29 @@ message DeleteSquashPlayerResponse {
 service SquashPlayerService {
   rpc CreateSquashPlayer(CreateSquashPlayerRequest) returns (CreateSquashPlayerResponse) {
     option(google.api.http) = {
-      post: "/v1/squash/players",
-      body: "*",
+      post: "/v1/squash/players";
+      body: "*";
     };
   }
   rpc GetSquashPlayer(GetSquashPlayerRequest) returns (GetSquashPlayerResponse) {
     option(google.api.http) = {
-      post: "/v1/squash/players/{id}",
+      post: "/v1/squash/players/{id}";
     };
   }
   rpc ListSquashPlayers(GetAllSquashPlayersRequest) returns (GetSquashPlayerResponse) {
     option(google.api.http) = {
-      get: "/v1/squash/players",
+      get: "/v1/squash/players";
     };
   }
   rpc UpdateSquashPlayer(UpdateSquashPlayerRequest) returns (UpdateSquashPlayerResponse) {
     option(google.api.http) = {
-      patch: "/v1/squash/players/{id}",
-      body: "*"
+      patch: "/v1/squash/players/{id}";
+      body: "*";
     };
   }
   rpc DeleteSquashPlayer(DeleteSquashPlayerRequest) returns(DeleteSquashPlayerResponse) {
     option(google.api.http) = {
-      delete: "/v1/squash/players/{id}",
+      delete: "/v1/squash/players/{id}";
     };
   };
 }
