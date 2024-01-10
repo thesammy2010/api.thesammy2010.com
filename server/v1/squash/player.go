@@ -10,15 +10,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type SquashPlayerServer struct {
+// PlayerServer SquashPlayer server type
+type PlayerServer struct {
 	pb.UnimplementedSquashPlayerServiceServer
 }
 
-func NewSquashPlayerServer() *SquashPlayerServer {
-	return &SquashPlayerServer{}
+// NewSquashPlayerServer Function to create new server
+func NewSquashPlayerServer() *PlayerServer {
+	return &PlayerServer{}
 }
 
-func (s *SquashPlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSquashPlayerRequest) (*pb.CreateSquashPlayerResponse, error) {
+// CreateSquashPlayer Function to handle incoming request for creating new squash player
+func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSquashPlayerRequest) (*pb.CreateSquashPlayerResponse, error) {
 	data, err := json.Marshal(&in)
 	fmt.Printf("%s\n", string(data))
 	if err != nil {

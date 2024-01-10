@@ -40,7 +40,7 @@ jobs:
             - name: Run golint
               run: golint ./...
             - name: Install staticcheck
-              run: go install honnef.co/go/tools/cmd/staticcheck@latest
+              run: go install honnef.co/go/tools/cmd/staticcheck@v0.4.6
             - name: Run staticcheck
               run: staticcheck ./...
     test:
