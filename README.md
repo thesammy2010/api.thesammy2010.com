@@ -1,9 +1,6 @@
 # api.thesammy2010.com
 > gRPC HTTP repo for https://api.thesammy2010.com
 
-### Usage
-
-
 ### Setup
 ```bash
 brew install bufbuild/buf/buf
@@ -13,6 +10,7 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 buf generate
 go run server/main.go
 ```
+### Usage
 
 ```http request
 POST localhost:5000/v1/squash/players?pretty -d '{"name": "TheSammy2010"}'
