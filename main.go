@@ -33,6 +33,15 @@ func withLogger(handler http.Handler) http.Handler {
 	})
 }
 
+// InitModels Used to initialise db models if they don't exist
+func initModels(ctx context.Context, db bun.DB) {
+	fmt.Println("Initialising models")
+	_, err := db.NewCreateTable().Model(&pb.SquashPlayer{}).IfNotExists().Exec(ctx)
+	if err != nil {
+		log.Fatalf("Failed to initialise model %+v, ", err)
+	}
+}
+
 func main() {
 
 	flag.Parse()
@@ -49,6 +58,9 @@ func main() {
 		//bundebug.WithVerbose(true),
 		bundebug.FromEnv("BUNDEBUG"),
 	))
+
+	// init
+	initModels(context.Background(), *db)
 
 	// Reserve port
 	lis, err := net.Listen("tcp", ":"+*grpcPort)

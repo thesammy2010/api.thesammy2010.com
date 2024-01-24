@@ -43,3 +43,4 @@ TODO
 - [x] Postgres Setup in Code
 - [ ] ORM relationships between tables
 - [ ] Handle null fields
+- [ ] Logging
