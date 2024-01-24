@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"github.com/felixge/httpsnoop"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
 	"github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
+	"github.com/uptrace/bun/extra/bundebug"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -36,6 +41,15 @@ func main() {
 		port = "5000"
 	}
 
+	// connect to Postgres
+	pgdb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(os.Getenv("DATABASE_URL"))))
+	db := bun.NewDB(pgdb, pgdialect.New())
+	pgdb.SetMaxOpenConns(1)
+	db.AddQueryHook(bundebug.NewQueryHook(
+		//bundebug.WithVerbose(true),
+		bundebug.FromEnv("BUNDEBUG"),
+	))
+
 	// Reserve port
 	lis, err := net.Listen("tcp", ":"+*grpcPort)
 	if err != nil {
@@ -45,7 +59,7 @@ func main() {
 	// start gRPC squashPlayerServer
 	s := grpc.NewServer()
 	// Register SquashPlayer endpoint
-	pb.RegisterSquashPlayerServiceServer(s, squash.NewSquashPlayerServer())
+	pb.RegisterSquashPlayerServiceServer(s, &squash.PlayerServer{DB: db})
 	log.Printf("Serving gRPC on 0.0.0.0:%s\n", *grpcPort)
 	go func() {
 		log.Fatalln(s.Serve(lis))
