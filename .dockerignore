@@ -13,3 +13,4 @@
 fly.toml
 
 .env
+.env.production

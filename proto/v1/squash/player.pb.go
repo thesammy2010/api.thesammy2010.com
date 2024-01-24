@@ -32,10 +32,10 @@ type SquashPlayer struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty" bun:"column_name:id,type:uuid,pk,default:gen_random_uuid()"`
 	// @inject_tag: `bun:",nullzero"`
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty" bun:",nullzero"`
-	// @inject_tag: `bun:",nullzero"`
-	EmailAddress string `protobuf:"bytes,3,opt,name=email_address,json=emailAddress,proto3" json:"email_address,omitempty" bun:",nullzero"`
-	// @inject_tag: `bun:",nullzero"`
-	ProfilePicture []byte `protobuf:"bytes,4,opt,name=profile_picture,json=profilePicture,proto3" json:"profile_picture,omitempty" bun:",nullzero"`
+	// @inject_tag: `bun:"default:null,nullzero"`
+	EmailAddress string `protobuf:"bytes,3,opt,name=email_address,json=emailAddress,proto3" json:"email_address,omitempty" bun:"default:null,nullzero"`
+	// @inject_tag: `bun:"default:null,nullzero"`
+	ProfilePicture []byte `protobuf:"bytes,4,opt,name=profile_picture,json=profilePicture,proto3" json:"profile_picture,omitempty" bun:"default:null,nullzero"`
 	// @inject_tag: bun:”type:timestamptz,default:now()”
 	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// @inject_tag: bun:”type:timestamptz,default:now()”
