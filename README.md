@@ -70,11 +70,32 @@ Content-Type: application/json
 ```
 
 TODO
-- [ ] Authentication
-- [ ] Other routes
-- [ ] Other methods
-- [x] Postgres Setup in Code
+- [ ] Authentication via Google
+  - https://developers.google.com/identity/openid-connect/openid-connect
+  - https://fireship.io/courses/stripe-js/customers-auth/
+  - Decoding JWTs in the header and a user table
+  - https://developers.google.com/identity/sign-in/web/backend-auth
+- [ ] Routes & Methods
+    - [ ] `/v1/squash/players`
+      - [X] GET
+      - [ ] GET (list)
+      - [ ] POST (create)
+      - [ ] PATCH (update)
+      - [ ] DELETE
+    - [ ] `/v1/squash/games/singles`
+      - [ ] GET
+      - [ ] GET (list)
+      - [ ] POST (create)
+      - [ ] PATCH (update)
+      - [ ] DELETE
+    - [ ] `/v1/squash/games/doubles`
+      - [ ] GET
+      - [ ] GET (list)
+      - [ ] POST (create)
+      - [ ] PATCH (update)
+      - [ ] DELETE
+- [X] Postgres Setup in Code
 - [ ] ORM relationships between tables
 - [ ] Handle null fields
-- [ ] Handle timestamps
+- [X] Handle timestamps
 - [ ] Logging
