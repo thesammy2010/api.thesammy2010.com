@@ -9,7 +9,7 @@ import (
 	"github.com/uptrace/bun/extra/bundebug"
 	"log"
 
-	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
+	m "github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
 
 	"os"
 )
@@ -30,7 +30,7 @@ func main() {
 // resetModels Used to recreate tables
 func resetModels(ctx context.Context, db bun.DB) {
 	// Reset Create Squash Player model
-	err := db.ResetModel(ctx, &pb.SquashPlayer{})
+	err := db.ResetModel(ctx, &m.DatabaseModel{})
 	if err != nil {
 		log.Fatalf("Failed to reset model %+v, ", err)
 	}

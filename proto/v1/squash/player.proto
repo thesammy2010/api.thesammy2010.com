@@ -3,22 +3,23 @@ syntax = "proto3";
 import "google/api/annotations.proto";
 import "google/protobuf/wrappers.proto";
 import "google/protobuf/timestamp.proto";
+import "gogoproto/gogo.proto";
 
 option go_package = "github.com/thesammy2010/api.thesammy2010.com/proto";
 
 message SquashPlayer {
-  // @inject_tag: `bun:"column_name:id,type:uuid,pk,default:gen_random_uuid()"`
+  // @inject_tag: `bun:",type:uuid,pk,default:gen_random_uuid()"`
   string id = 1;
-  // @inject_tag: `bun:",nullzero"`
+  // @inject_tag: `bun:",notnull"`
   string name = 2;
-  // @inject_tag: `bun:"default:null,nullzero"`
-  string email_address = 3;
-  // @inject_tag: `bun:"default:null,nullzero"`
-  bytes profile_picture = 4;
-  // @inject_tag: bun:”type:timestamptz,default:now()”
-  google.protobuf.Timestamp created_at = 5;
-  // @inject_tag: bun:”type:timestamptz,default:now()”
-  google.protobuf.Timestamp updated_at = 6;
+  // @inject_tag: `bun:",notnull"`
+  string email_address = 3 [json_name = "email_address"];
+  // @inject_tag: `bun:",nullzero"`
+  bytes profile_picture = 4 [json_name = "profile_picture"];
+  // @inject_tag: `bun:"-"`
+  google.protobuf.Timestamp created_at = 5 [json_name = "created_at", (gogoproto.stdtime) = true];
+  // @inject_tag: `bun:"-"`
+  google.protobuf.Timestamp updated_at = 6 [json_name = "updated_at", (gogoproto.stdtime) = true];
 }
 
 // CREATE
@@ -74,7 +75,7 @@ service SquashPlayerService {
   }
   rpc GetSquashPlayer(GetSquashPlayerRequest) returns (GetSquashPlayerResponse) {
     option(google.api.http) = {
-      post: "/v1/squash/players/{id}";
+      get: "/v1/squash/players/{id}";
     };
   }
   rpc ListSquashPlayers(GetAllSquashPlayersRequest) returns (GetSquashPlayerResponse) {

@@ -29,7 +29,7 @@ var (
 func withLogger(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		m := httpsnoop.CaptureMetrics(handler, writer, request)
-		log.Printf("http[%d] -- %s\n", m.Code, request.URL.Path)
+		log.Printf("%s http[%d] -- %s\n", request.Method, m.Code, request.URL.Path)
 	})
 }
 
