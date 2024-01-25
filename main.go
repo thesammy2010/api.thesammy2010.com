@@ -8,7 +8,7 @@ import (
 	"github.com/felixge/httpsnoop"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
-	player "github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
+	squashplayer "github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -36,7 +36,7 @@ func withLogger(handler http.Handler) http.Handler {
 // InitModels Used to initialise db models if they don't exist
 func initModels(ctx context.Context, db bun.DB) {
 	fmt.Println("Initialising models")
-	_, err := db.NewCreateTable().Model(player.DatabaseModel{}).IfNotExists().Exec(ctx)
+	_, err := db.NewCreateTable().Model(&squashplayer.DatabaseModel{}).IfNotExists().Exec(ctx)
 	if err != nil {
 		log.Fatalf("Failed to initialise model %+v, ", err)
 	}
@@ -71,7 +71,7 @@ func main() {
 	// start gRPC squashPlayerServer
 	s := grpc.NewServer()
 	// Register SquashPlayer endpoint
-	pb.RegisterSquashPlayerServiceServer(s, &player.PlayerServer{DB: db})
+	pb.RegisterSquashPlayerServiceServer(s, &squashplayer.PlayerServer{DB: db})
 	log.Printf("Serving gRPC on 0.0.0.0:%s\n", *grpcPort)
 	go func() {
 		log.Fatalln(s.Serve(lis))
