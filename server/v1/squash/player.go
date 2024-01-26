@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"net/mail"
 	"time"
 )
@@ -21,32 +20,19 @@ type PlayerServer struct {
 	DB *bun.DB
 }
 
-// DatabaseModel An abstraction that allows for storing extra fields not shown in the struct
-type DatabaseModel struct {
-	pb.SquashPlayer
-	bun.BaseModel `bun:"table:squash_players"`
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
+// SquashPlayer only used for the auto update of the original model
+type SquashPlayer pb.SquashPlayer
 
-// ToSquashPlayer this converts the database model to the proto model. Only used for transforming the timestamp
-func (m *DatabaseModel) ToSquashPlayer() *pb.SquashPlayer {
-	return &pb.SquashPlayer{
-		Id: m.Id, Name: m.Name, EmailAddress: m.EmailAddress, ProfilePicture: m.ProfilePicture,
-		CreatedAt: timestamppb.New(m.CreatedAt), UpdatedAt: timestamppb.New(m.UpdatedAt),
-	}
-}
-
-var _ bun.BeforeAppendModelHook = (*DatabaseModel)(nil)
+var _ bun.BeforeAppendModelHook = (*SquashPlayer)(nil)
 
 // BeforeAppendModel Used to update the created_at and updated_at fields on query changes
-func (m *DatabaseModel) BeforeAppendModel(ctx context.Context, query bun.Query) error {
+func (p *SquashPlayer) BeforeAppendModel(ctx context.Context, query bun.Query) error {
 	switch query.(type) {
 	case *bun.InsertQuery:
-		m.CreatedAt = time.Now()
-		m.UpdatedAt = time.Now()
+		p.CreatedAt = time.Now().String()
+		p.UpdatedAt = time.Now().String()
 	case *bun.UpdateQuery:
-		m.UpdatedAt = time.Now()
+		p.UpdatedAt = time.Now().String()
 	}
 	return nil
 }
@@ -83,12 +69,12 @@ func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSqua
 	if err := validateCreateSquashPlayerRequest(in); err != nil {
 		return nil, err
 	}
-	var check DatabaseModel
-	var response DatabaseModel
-	now := timestamppb.New(time.Now())
+	var check SquashPlayer
+	var response SquashPlayer
+	now := time.Now().Format(time.RFC3339)
 
 	// check if player already exists
-	err := s.DB.NewSelect().Model(&DatabaseModel{SquashPlayer: pb.SquashPlayer{Name: in.Name}}).Where("name = ?", in.Name).WhereOr("email_address = ?", in.EmailAddress).Scan(ctx, &check)
+	err := s.DB.NewSelect().Model(&SquashPlayer{Name: in.Name}).Where("name = ?", in.Name).WhereOr("email_address = ?", in.EmailAddress).Scan(ctx, &check)
 	if err == nil {
 		if check.Id != "" {
 			return nil, status.Error(codes.AlreadyExists, "Player already exists")
@@ -100,7 +86,7 @@ func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSqua
 
 	// create new user
 	_, err = s.DB.NewInsert().Model(
-		&DatabaseModel{SquashPlayer: pb.SquashPlayer{Name: in.Name, EmailAddress: in.EmailAddress, ProfilePicture: in.ProfilePicture, CreatedAt: now, UpdatedAt: now}},
+		&SquashPlayer{Name: in.Name, EmailAddress: in.EmailAddress, ProfilePicture: in.ProfilePicture, CreatedAt: now, UpdatedAt: now},
 	).Returning("id").Exec(ctx, &response)
 	if err != nil {
 		fmt.Println(err)
@@ -114,12 +100,13 @@ func (s *PlayerServer) GetSquashPlayer(ctx context.Context, in *pb.GetSquashPlay
 	if err := validateGetSquashPlayerRequest(in); err != nil {
 		return nil, err
 	}
-	var response DatabaseModel
-	if err := s.DB.NewSelect().Model(&DatabaseModel{SquashPlayer: pb.SquashPlayer{Id: in.Id}}).WherePK().Scan(ctx, &response); err != nil {
+	var response pb.SquashPlayer
+	if err := s.DB.NewSelect().Model(&SquashPlayer{Id: in.Id}).WherePK().Scan(ctx, &response); err != nil {
+
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, fmt.Sprintf("Player with ID `%s` does not exist", in.Id))
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to find player with ID `%s`", in.Id))
 	}
-	return &pb.GetSquashPlayerResponse{SquashPlayer: response.ToSquashPlayer()}, nil
+	return &pb.GetSquashPlayerResponse{SquashPlayer: &response}, nil
 }

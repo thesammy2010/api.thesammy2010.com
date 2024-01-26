@@ -3,7 +3,6 @@ syntax = "proto3";
 import "google/api/annotations.proto";
 import "google/protobuf/wrappers.proto";
 import "google/protobuf/timestamp.proto";
-import "gogoproto/gogo.proto";
 
 option go_package = "github.com/thesammy2010/api.thesammy2010.com/proto";
 
@@ -16,10 +15,10 @@ message SquashPlayer {
   string email_address = 3 [json_name = "email_address"];
   // @inject_tag: `bun:",nullzero"`
   bytes profile_picture = 4 [json_name = "profile_picture"];
-  // @inject_tag: `bun:"-"`
-  google.protobuf.Timestamp created_at = 5 [json_name = "created_at", (gogoproto.stdtime) = true];
-  // @inject_tag: `bun:"-"`
-  google.protobuf.Timestamp updated_at = 6 [json_name = "updated_at", (gogoproto.stdtime) = true];
+  // @inject_tag: `bun:",type:timestamptz,notnull,nullzero,default:now()"`
+  string created_at = 5 [json_name = "created_at"];
+  // @inject_tag: `bun:",type:timestamptz,notnull,nullzero,default:now()"`
+  string updated_at = 6 [json_name = "updated_at"];
 }
 
 // CREATE

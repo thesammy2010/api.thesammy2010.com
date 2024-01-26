@@ -36,7 +36,7 @@ func withLogger(handler http.Handler) http.Handler {
 // InitModels Used to initialise db models if they don't exist
 func initModels(ctx context.Context, db bun.DB) {
 	fmt.Println("Initialising models")
-	_, err := db.NewCreateTable().Model(&squashplayer.DatabaseModel{}).IfNotExists().Exec(ctx)
+	_, err := db.NewCreateTable().Model(&pb.SquashPlayer{}).IfNotExists().Exec(ctx)
 	if err != nil {
 		log.Fatalf("Failed to initialise model %+v, ", err)
 	}
