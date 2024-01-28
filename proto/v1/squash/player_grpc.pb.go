@@ -32,7 +32,7 @@ const (
 type SquashPlayerServiceClient interface {
 	CreateSquashPlayer(ctx context.Context, in *CreateSquashPlayerRequest, opts ...grpc.CallOption) (*CreateSquashPlayerResponse, error)
 	GetSquashPlayer(ctx context.Context, in *GetSquashPlayerRequest, opts ...grpc.CallOption) (*GetSquashPlayerResponse, error)
-	ListSquashPlayers(ctx context.Context, in *GetAllSquashPlayersRequest, opts ...grpc.CallOption) (*GetSquashPlayerResponse, error)
+	ListSquashPlayers(ctx context.Context, in *ListSquashPlayersRequest, opts ...grpc.CallOption) (*ListSquashPlayersResponse, error)
 	UpdateSquashPlayer(ctx context.Context, in *UpdateSquashPlayerRequest, opts ...grpc.CallOption) (*UpdateSquashPlayerResponse, error)
 	DeleteSquashPlayer(ctx context.Context, in *DeleteSquashPlayerRequest, opts ...grpc.CallOption) (*DeleteSquashPlayerResponse, error)
 }
@@ -63,8 +63,8 @@ func (c *squashPlayerServiceClient) GetSquashPlayer(ctx context.Context, in *Get
 	return out, nil
 }
 
-func (c *squashPlayerServiceClient) ListSquashPlayers(ctx context.Context, in *GetAllSquashPlayersRequest, opts ...grpc.CallOption) (*GetSquashPlayerResponse, error) {
-	out := new(GetSquashPlayerResponse)
+func (c *squashPlayerServiceClient) ListSquashPlayers(ctx context.Context, in *ListSquashPlayersRequest, opts ...grpc.CallOption) (*ListSquashPlayersResponse, error) {
+	out := new(ListSquashPlayersResponse)
 	err := c.cc.Invoke(ctx, SquashPlayerService_ListSquashPlayers_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (c *squashPlayerServiceClient) DeleteSquashPlayer(ctx context.Context, in *
 type SquashPlayerServiceServer interface {
 	CreateSquashPlayer(context.Context, *CreateSquashPlayerRequest) (*CreateSquashPlayerResponse, error)
 	GetSquashPlayer(context.Context, *GetSquashPlayerRequest) (*GetSquashPlayerResponse, error)
-	ListSquashPlayers(context.Context, *GetAllSquashPlayersRequest) (*GetSquashPlayerResponse, error)
+	ListSquashPlayers(context.Context, *ListSquashPlayersRequest) (*ListSquashPlayersResponse, error)
 	UpdateSquashPlayer(context.Context, *UpdateSquashPlayerRequest) (*UpdateSquashPlayerResponse, error)
 	DeleteSquashPlayer(context.Context, *DeleteSquashPlayerRequest) (*DeleteSquashPlayerResponse, error)
 }
@@ -111,7 +111,7 @@ func (UnimplementedSquashPlayerServiceServer) CreateSquashPlayer(context.Context
 func (UnimplementedSquashPlayerServiceServer) GetSquashPlayer(context.Context, *GetSquashPlayerRequest) (*GetSquashPlayerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSquashPlayer not implemented")
 }
-func (UnimplementedSquashPlayerServiceServer) ListSquashPlayers(context.Context, *GetAllSquashPlayersRequest) (*GetSquashPlayerResponse, error) {
+func (UnimplementedSquashPlayerServiceServer) ListSquashPlayers(context.Context, *ListSquashPlayersRequest) (*ListSquashPlayersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListSquashPlayers not implemented")
 }
 func (UnimplementedSquashPlayerServiceServer) UpdateSquashPlayer(context.Context, *UpdateSquashPlayerRequest) (*UpdateSquashPlayerResponse, error) {
@@ -169,7 +169,7 @@ func _SquashPlayerService_GetSquashPlayer_Handler(srv interface{}, ctx context.C
 }
 
 func _SquashPlayerService_ListSquashPlayers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAllSquashPlayersRequest)
+	in := new(ListSquashPlayersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func _SquashPlayerService_ListSquashPlayers_Handler(srv interface{}, ctx context
 		FullMethod: SquashPlayerService_ListSquashPlayers_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SquashPlayerServiceServer).ListSquashPlayers(ctx, req.(*GetAllSquashPlayersRequest))
+		return srv.(SquashPlayerServiceServer).ListSquashPlayers(ctx, req.(*ListSquashPlayersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

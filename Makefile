@@ -1,10 +1,8 @@
-include .env
-
 install:
 	brew install bufbuild/buf/buf
 	go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.19.0
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.3.0
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.28.1
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 	go install github.com/favadi/protoc-go-inject-tag@v1.4.0
 
 generate:
@@ -15,7 +13,7 @@ build-app:
 	go build -o build
 
 run-app:
-	go run main.go
+	go run cmd/server/main.go
 
 test-app:
 	go vet ./...
