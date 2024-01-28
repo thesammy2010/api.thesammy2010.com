@@ -1,6 +1,13 @@
 package internal
 
-import "github.com/spf13/viper"
+import (
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
+)
+
+var (
+	logger = zap.Must(zap.NewProduction())
+)
 
 // Config struct to hold config options
 type Config struct {
@@ -19,7 +26,7 @@ func LoadConfig() (config Config, err error) {
 	viper.SetConfigType("env")
 	err = viper.ReadInConfig()
 	if err != nil {
-		return
+		logger.Warn("Failed to read config file", zap.String("configFile", viper.ConfigFileUsed()))
 	}
 	viper.AutomaticEnv()
 	err = viper.Unmarshal(&config)
