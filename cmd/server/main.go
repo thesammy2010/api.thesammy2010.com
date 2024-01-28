@@ -3,89 +3,95 @@ package main
 import (
 	"context"
 	"database/sql"
-	"flag"
-	"fmt"
+	"github.com/alexlast/bunzap"
 	"github.com/felixge/httpsnoop"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/thesammy2010/api.thesammy2010.com/internal"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
 	squashplayer "github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
-	"github.com/uptrace/bun/extra/bundebug"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
-	"log"
 	"net"
 	"net/http"
-	"os"
 )
 
 var (
-	grpcPort = flag.String("gprc_port", "8090", "Port name for the gRPC service")
+	logger = zap.Must(zap.NewProduction())
 )
 
+// withLogger This wrapper snoops requests and prints out logs
 func withLogger(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		m := httpsnoop.CaptureMetrics(handler, writer, request)
-		log.Printf("%s http[%d] -- %s\n", request.Method, m.Code, request.URL.Path)
+		logger.Info("Request",
+			zap.String("method", request.Method),
+			zap.Int("status", m.Code),
+			zap.String("path", request.URL.Path),
+		)
 	})
 }
 
 // InitModels Used to initialise db models if they don't exist
 func initModels(ctx context.Context, db bun.DB) {
-	fmt.Println("Initialising models")
+	logger.Debug("Initialising models")
 	_, err := db.NewCreateTable().Model(&pb.SquashPlayer{}).IfNotExists().Exec(ctx)
 	if err != nil {
-		log.Fatalf("Failed to initialise model %+v, ", err)
+		logger.Fatal("Failed to initialise model", zap.Error(err))
 	}
 }
 
 func main() {
 
-	flag.Parse()
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "5000"
+	// init logger and config
+	logger := zap.Must(zap.NewProduction())
+	defer logger.Sync()
+	config, err := internal.LoadConfig()
+	if err != nil {
+		logger.Fatal("Failed to initialise config file", zap.Error(err))
 	}
 
-	// connect to Postgres
-	pgdb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(os.Getenv("DATABASE_URL"))))
+	// connect to db
+	pgdb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(config.DatabaseURL)))
 	db := bun.NewDB(pgdb, pgdialect.New())
 	pgdb.SetMaxOpenConns(1)
-	db.AddQueryHook(bundebug.NewQueryHook(
-		//bundebug.WithVerbose(true),
-		bundebug.FromEnv("BUNDEBUG"),
+	db.AddQueryHook(bunzap.NewQueryHook(
+		bunzap.QueryHookOptions{
+			Logger: logger,
+		},
 	))
 
-	// init
+	// init models
 	initModels(context.Background(), *db)
 
 	// Reserve port
-	lis, err := net.Listen("tcp", ":"+*grpcPort)
+	lis, err := net.Listen("tcp", ":"+config.GrpcPort)
 	if err != nil {
-		log.Fatalln("Failed to listen:", err)
+		logger.Fatal("Failed to listen:", zap.Error(err))
 	}
 
 	// start gRPC squashPlayerServer
 	s := grpc.NewServer()
 	// Register SquashPlayer endpoint
 	pb.RegisterSquashPlayerServiceServer(s, &squashplayer.PlayerServer{DB: db})
-	log.Printf("Serving gRPC on 0.0.0.0:%s\n", *grpcPort)
+	logger.Info("Serving gRPC", zap.String("Port", config.GrpcPort))
 	go func() {
-		log.Fatalln(s.Serve(lis))
+		logger.Fatal("Error serving gRPC", zap.Error(s.Serve(lis)))
 	}()
 
 	// Create a client connection to the gRPC squashPlayerServer
 	conn, err := grpc.DialContext(
 		context.Background(),
-		fmt.Sprintf("0.0.0.0:%s", *grpcPort),
+		"0.0.0.0:"+config.GrpcPort,
 		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		log.Fatalln("Failed to dial squashPlayerServer:", err)
+		logger.Fatal("Failed to dial squashPlayerServer:", zap.Error(err))
 	}
 
 	gwmux := runtime.NewServeMux(
@@ -110,13 +116,13 @@ func main() {
 	// Register Squash Player proxy
 	err = pb.RegisterSquashPlayerServiceHandler(context.Background(), gwmux, conn)
 	if err != nil {
-		log.Fatalln("Failed to register gateway:", err)
+		logger.Fatal("Failed to register gateway:", zap.Error(err))
 	}
 
 	gwServer := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":" + config.GatewayPort,
 		Handler: withLogger(prettier(gwmux)),
 	}
-	log.Printf("Serving gRPC-Gateway on http://0.0.0.0:%s\n", port)
-	log.Fatalln(gwServer.ListenAndServe())
+	logger.Info("Serving gRPC-Gateway", zap.String("Port", config.GatewayPort))
+	logger.Fatal("Error serving gRPC Gateay", zap.Error(gwServer.ListenAndServe()))
 }
