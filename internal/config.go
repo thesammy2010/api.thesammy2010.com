@@ -3,7 +3,6 @@ package internal
 import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	"strings"
 )
 
 var (
@@ -31,12 +30,16 @@ func LoadConfig() (config Config, err error) {
 	viper.SetDefault("HANDLERS_ENABLE_LOGGING", true)
 	viper.SetDefault("HANDLERS_ENABLE_PRETTIER", false)
 	viper.SetDefault("HANDLERS_ENABLE_BASIC_AUTH", false)
-
-	//viper.SetTypeByDefaultValue(true)
-	viper.SetEnvKeyReplacer(strings.NewReplacer(`.`, `_`))
 	viper.AddConfigPath(".")
 	viper.SetConfigName(".env")
 	viper.SetConfigType("env")
+
+	err = viper.BindEnv("DATABASE_URL", "DATABASE_URL")
+	if err != nil {
+		logger.Warn("Failed to bind environment variable `DATABASE_URL`")
+		return
+	}
+
 	err = viper.ReadInConfig()
 	if err != nil {
 		logger.Warn("Failed to read config file", zap.String("configFile", viper.ConfigFileUsed()))
