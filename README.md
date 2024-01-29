@@ -78,8 +78,8 @@ TODO
 - [ ] Routes & Methods
     - [ ] `/v1/squash/players`
       - [X] GET
-      - [ ] GET (list)
-      - [ ] POST (create)
+      - [X] GET (list)
+      - [X] POST (create)
       - [ ] PATCH (update)
       - [ ] DELETE
     - [ ] `/v1/squash/games/singles`
@@ -98,4 +98,4 @@ TODO
 - [ ] ORM relationships between tables
 - [ ] Handle null fields
 - [X] Handle timestamps
-- [ ] Logging
+- [X] Logging
