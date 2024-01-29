@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"net/http"
+	"time"
 )
 
 var (
@@ -42,7 +43,13 @@ func main() {
 	}
 
 	// connect to db
-	pgdb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(config.DatabaseURL)))
+	pgdb := sql.OpenDB(pgdriver.NewConnector(
+		pgdriver.WithDSN(config.DatabaseURL),
+		pgdriver.WithTimeout(5*time.Second),
+		pgdriver.WithDialTimeout(5*time.Second),
+		pgdriver.WithReadTimeout(5*time.Second),
+		pgdriver.WithWriteTimeout(5*time.Second),
+	))
 	db := bun.NewDB(pgdb, pgdialect.New())
 	pgdb.SetMaxOpenConns(1)
 	db.AddQueryHook(bunzap.NewQueryHook(
@@ -88,8 +95,10 @@ func main() {
 	}
 
 	gwServer := &http.Server{
-		Addr:    ":" + config.GatewayPort,
-		Handler: internal.HttpHandler(gwmux, config),
+		Addr:         ":" + config.GatewayPort,
+		Handler:      internal.HttpHandler(gwmux, config),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	}
 	logger.Info("Serving gRPC-Gateway", zap.String("Port", config.GatewayPort))
 	logger.Fatal("Error serving gRPC Gateay", zap.Error(gwServer.ListenAndServe()))

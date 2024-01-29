@@ -19,15 +19,20 @@ type Config struct {
 	ApiKey      string `mapstructure:"API_KEY"`
 	// http handler flags
 	HandlerEnableLogging   bool `mapstructure:"HANDLERS_ENABLE_LOGGING"`
-	HandlerEnablePrettier  bool `mapstructure:"HANDLERS_PRETTIER"`
-	HandlerEnableBasicAuth bool `mapstructure:"HANDLERS_BASIC_AUTH"`
+	HandlerEnablePrettier  bool `mapstructure:"HANDLERS_ENABLE_PRETTIER"`
+	HandlerEnableBasicAuth bool `mapstructure:"HANDLERS_ENABLE_BASIC_AUTH"`
 }
 
 // LoadConfig function that loads config opts from files and env vars
 func LoadConfig() (config Config, err error) {
 	viper.SetDefault("PORT", "5000")
 	viper.SetDefault("GRPC_PORT", "8090")
-	viper.SetTypeByDefaultValue(true)
+	viper.SetDefault("API_KEY", "")
+	viper.SetDefault("HANDLERS_ENABLE_LOGGING", true)
+	viper.SetDefault("HANDLERS_ENABLE_PRETTIER", false)
+	viper.SetDefault("HANDLERS_ENABLE_BASIC_AUTH", false)
+
+	//viper.SetTypeByDefaultValue(true)
 	viper.SetEnvKeyReplacer(strings.NewReplacer(`.`, `_`))
 	viper.AddConfigPath(".")
 	viper.SetConfigName(".env")
