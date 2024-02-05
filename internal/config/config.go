@@ -1,12 +1,9 @@
-package internal
+package config
 
 import (
 	"github.com/spf13/viper"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	"go.uber.org/zap"
-)
-
-var (
-	logger = zap.Must(zap.NewProduction())
 )
 
 // Config struct to hold config options
@@ -20,6 +17,9 @@ type Config struct {
 	HandlerEnableLogging   bool `mapstructure:"HANDLERS_ENABLE_LOGGING"`
 	HandlerEnablePrettier  bool `mapstructure:"HANDLERS_ENABLE_PRETTIER"`
 	HandlerEnableBasicAuth bool `mapstructure:"HANDLERS_ENABLE_BASIC_AUTH"`
+	// Cache options
+	CacheDefaultExpiration int `mapstructure:"CACHE_DEFAULT_EXPIRATION"`
+	CachePurgeTime         int `mapstructure:"CACHE_PURGE_TIME"`
 }
 
 // LoadConfig function that loads config opts from files and env vars
@@ -30,6 +30,8 @@ func LoadConfig() (config Config, err error) {
 	viper.SetDefault("HANDLERS_ENABLE_LOGGING", true)
 	viper.SetDefault("HANDLERS_ENABLE_PRETTIER", false)
 	viper.SetDefault("HANDLERS_ENABLE_BASIC_AUTH", false)
+	viper.SetDefault("CACHE_DEFAULT_EXPIRATION", 5)
+	viper.SetDefault("CACHE_PURGE_TIME", 10)
 	viper.AddConfigPath(".")
 	viper.SetConfigName(".env")
 	viper.SetConfigType("env")
@@ -53,6 +55,8 @@ func LoadConfig() (config Config, err error) {
 		zap.Bool("HandlerEnableLogging", config.HandlerEnableLogging),
 		zap.Bool("HandlerEnablePrettier", config.HandlerEnablePrettier),
 		zap.Bool("HandlerEnableBasicAuth", config.HandlerEnableBasicAuth),
+		zap.Int("CacheDefaultExpiration", config.CacheDefaultExpiration),
+		zap.Int("CachePurgeTime", config.CachePurgeTime),
 	)
 	return
 }
