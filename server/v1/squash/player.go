@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/cache"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
@@ -71,28 +70,59 @@ func validateCreateSquashPlayerRequest(in *pb.CreateSquashPlayerRequest) error {
 }
 
 // validateGetSquashPlayerRequest function to validate incoming requests to GET /v1/squash/players/:id
-func validateGetSquashPlayerRequest(in *pb.GetSquashPlayerRequest) error {
+func validateGetSquashPlayerRequest(in *pb.GetSquashPlayerRequest, trace string) error {
 	if in.Id == "" {
 		return status.Error(codes.InvalidArgument, "Player `id` is required")
 	}
 	if _, err := uuid.Parse(in.Id); err != nil {
+		logger.Debug("Field is not valid UUID",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.Id),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
 		return status.Error(codes.InvalidArgument, "Player `id` type is not valid UUID")
 	}
 	return nil
 }
 
-func validateGetSquashPlayersRequest(in *pb.ListSquashPlayersRequest) error {
+func validateGetSquashPlayersRequest(in *pb.ListSquashPlayersRequest, trace string) error {
 	if in.Offset == "" {
 		return nil
 	}
 	if _, err := uuid.Parse(in.Offset); err != nil {
+		logger.Debug("Field is not valid UUID",
+			zap.String("Resource", "ListPlayer"),
+			zap.String("Offset", in.Offset),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
 		return status.Error(codes.InvalidArgument, "Offset type is not valid UUID")
+	}
+	return nil
+}
+
+func validateUpdateSquashPlayerRequest(in *pb.UpdateSquashPlayerRequest, trace string) error {
+	if in.Id == "" {
+		return status.Error(codes.InvalidArgument, "Player `id` is required")
+	}
+	if in.Name != nil {
+		if in.Name.GetValue() == "" {
+			return status.Error(codes.InvalidArgument, "If `name` is provided, it must not be empty")
+		}
+	}
+	if in.ProfilePicture != nil {
+		if in.ProfilePicture.GetValue() == "" {
+			return status.Error(codes.InvalidArgument, "If `profile_picture` is provided, it must not be empty")
+		}
 	}
 	return nil
 }
 
 // CreateSquashPlayer Function to handle incoming request for creating new squash player
 func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSquashPlayerRequest) (*pb.CreateSquashPlayerResponse, error) {
+	trace := uuid.New().String()
+
 	if err := validateCreateSquashPlayerRequest(in); err != nil {
 		return nil, err
 	}
@@ -107,6 +137,12 @@ func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSqua
 		}
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
+		logger.Error("Unknown error checking for existing of resource",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.EmailAddress),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
 		return nil, status.Error(codes.Internal, "Internal error registering player")
 	}
 
@@ -115,51 +151,67 @@ func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSqua
 		&SquashPlayer{Name: in.Name, EmailAddress: in.EmailAddress, ProfilePicture: in.ProfilePicture},
 	).Returning("*").Exec(ctx, &response)
 	if err != nil {
-		logger.Error("Unknown error inserting player into db",
-			zap.String("email", in.EmailAddress),
+		logger.Error("Unknown error creating resource",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.EmailAddress),
+			zap.String("trace", trace),
+			zap.Error(err),
 		)
 		return nil, status.Error(codes.Internal, "Failed to register new player")
 	}
 
 	// update cache
-	s.Cache.UpdateSquashPlayer(&response)
+	s.Cache.UpdateSquashPlayer(&response, trace)
 
 	return &pb.CreateSquashPlayerResponse{Id: response.Id}, err
 }
 
 // GetSquashPlayer Function to fetch squash player from db
 func (s *PlayerServer) GetSquashPlayer(ctx context.Context, in *pb.GetSquashPlayerRequest) (*pb.GetSquashPlayerResponse, error) {
-	if err := validateGetSquashPlayerRequest(in); err != nil {
+	trace := uuid.New().String()
+
+	if err := validateGetSquashPlayerRequest(in, trace); err != nil {
 		return nil, err
 	}
 
 	// check cache
-	if player, ok := s.Cache.GetSquashPlayer(in.Id); ok {
+	if player, ok := s.Cache.GetSquashPlayer(in.Id, trace); ok {
 		return &pb.GetSquashPlayerResponse{SquashPlayer: player}, nil
 	}
 
 	var response pb.SquashPlayer
 	if err := s.DB.NewSelect().Model(&SquashPlayer{Id: in.Id}).WherePK().Scan(ctx, &response); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, status.Error(codes.NotFound, fmt.Sprintf("Player with ID `%s` does not exist", in.Id))
+			return nil, status.Error(codes.NotFound, "Player does not exist")
 		}
-		logger.Error("Unknown error fetching player from db",
-			zap.String("squash_player", in.Id),
+		logger.Error("Unknown error fetching resource from db",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.Id),
+			zap.String("trace", trace),
+			zap.Error(err),
 		)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to find player with ID `%s`", in.Id))
+		return nil, status.Error(codes.Internal, "Failed to find player")
 	}
 
 	// update cache
-	s.Cache.UpdateSquashPlayer(&response)
+	s.Cache.UpdateSquashPlayer(&response, trace)
 
 	return &pb.GetSquashPlayerResponse{SquashPlayer: &response}, nil
 }
 
 // ListSquashPlayers Function to list squash players, pagination based on ID
 func (s *PlayerServer) ListSquashPlayers(ctx context.Context, in *pb.ListSquashPlayersRequest) (*pb.ListSquashPlayersResponse, error) {
-	if err := validateGetSquashPlayersRequest(in); err != nil {
+	trace := uuid.New().String()
+
+	if err := validateGetSquashPlayersRequest(in, trace); err != nil {
 		return nil, err
 	}
+
+	// check cache
+	if players, ok := s.Cache.GetSquashPlayerList(in.Offset, trace); ok {
+		return players, nil
+	}
+
 	var response []*pb.SquashPlayer
 	query := s.DB.NewSelect().Model(&SquashPlayer{}).Order("id ASC").Limit(10)
 	if in.Offset != "" {
@@ -169,8 +221,79 @@ func (s *PlayerServer) ListSquashPlayers(ctx context.Context, in *pb.ListSquashP
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "There are no players in the database")
 		}
-		logger.Error("Unknown error fetching player from db")
+		logger.Error("Unknown error fetching player from db",
+			zap.String("Resource", "PlayerList"),
+			zap.String("Offset", in.Offset),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
 		return nil, status.Error(codes.Internal, "Failed to find players")
 	}
-	return &pb.ListSquashPlayersResponse{SquashPlayers: response}, nil
+	apiResponse := &pb.ListSquashPlayersResponse{SquashPlayers: response}
+
+	// update cache
+	s.Cache.UpdateSquashPlayerList(in.Offset, apiResponse)
+
+	return apiResponse, nil
+}
+
+func (s *PlayerServer) UpdateSquashPlayer(ctx context.Context, in *pb.UpdateSquashPlayerRequest) (*pb.UpdateSquashPlayerResponse, error) {
+	trace := uuid.New().String()
+
+	if err := validateUpdateSquashPlayerRequest(in, trace); err != nil {
+		return nil, err
+	}
+
+	// check cache if user exists in cache or check db
+	_, ok := s.Cache.GetSquashPlayer(in.Id, trace)
+	if !ok {
+		_, err := s.GetSquashPlayer(ctx, &pb.GetSquashPlayerRequest{Id: in.Id})
+		if err != nil {
+			logger.Error("Error checking if user already exists",
+				zap.String("Resource", "Player"),
+				zap.String("ID", in.Id),
+				zap.String("trace", trace),
+				zap.Error(err),
+			)
+			return nil, err
+		}
+	}
+
+	// update in db
+	var response pb.SquashPlayer
+
+	dbRes, err := s.DB.NewUpdate().Model(&SquashPlayer{Id: in.Id, ProfilePicture: in.ProfilePicture.GetValue(), Name: in.Name.GetValue()}).OmitZero().WherePK().Returning("*").Exec(ctx, &response)
+	if err != nil {
+		logger.Error("Error Running update in db",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.Id),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
+		return nil, status.Error(codes.Internal, "Error occurred updating resource")
+	}
+	rows, err := dbRes.RowsAffected()
+	if rows == 0 {
+		logger.Warn("No rows effected from UPDATE statement", zap.String("Resource", "Player"), zap.String("ID", in.Id))
+		return nil, status.Error(codes.NotFound, "Player does not exist")
+	}
+	if err != nil {
+		logger.Error("Error occurred when updating record",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.Id),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
+		return nil, status.Error(codes.Internal, "Internal error updating Player")
+	}
+	logger.Debug("Resource successfully updated",
+		zap.String("Resource", "Player"),
+		zap.String("ID", in.Id),
+		zap.String("trace", trace),
+	)
+
+	// update cache
+	s.Cache.UpdateSquashPlayer(&response, trace)
+
+	return &pb.UpdateSquashPlayerResponse{SquashPlayer: &response}, nil
 }

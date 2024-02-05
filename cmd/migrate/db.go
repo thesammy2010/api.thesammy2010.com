@@ -6,7 +6,7 @@ import (
 	"github.com/alexlast/bunzap"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/config"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
-	pb "github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
+	squashplayer "github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -39,7 +39,7 @@ func main() {
 func resetModels(ctx context.Context, db bun.DB) {
 	// Reset Create Squash Player model
 	logger.Info("Resetting `squash_player`")
-	err := db.ResetModel(ctx, &pb.SquashPlayer{})
+	err := db.ResetModel(ctx, &squashplayer.SquashPlayer{})
 	if err != nil {
 		logger.Fatal("Failed to reset model: %v, ", zap.Error(err))
 	}

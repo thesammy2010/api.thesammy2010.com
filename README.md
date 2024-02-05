@@ -69,6 +69,23 @@ Content-Type: application/json
 }
 ```
 
+```http request
+PATCH /v1/squash/players/76d34b99-1e10-4693-b2c2-20b129ad4da1 -d '{"name": "TheSammy2011"}'
+```
+
+```json
+{
+  "squashPlayer": {
+    "id": "76d34b99-1e10-4693-b2c2-20b129ad4da1",
+    "name": "TheSammy2011",
+    "email_address": "foo@example.comssss",
+    "profile_picture": "",
+    "created_at": "2024-02-05T14:34:41Z",
+    "updated_at": "2024-02-05T15:34:44Z"
+  }
+}
+```
+
 TODO
 - [ ] Authentication via Google
   - https://developers.google.com/identity/openid-connect/openid-connect
@@ -80,7 +97,7 @@ TODO
       - [X] GET
       - [X] GET (list)
       - [X] POST (create)
-      - [ ] PATCH (update)
+      - [X] PATCH (update)
       - [ ] DELETE
     - [ ] `/v1/squash/games/singles`
       - [ ] GET
@@ -99,3 +116,4 @@ TODO
 - [ ] Handle null fields
 - [X] Handle timestamps
 - [X] Logging
+  - [X] Trace Logging

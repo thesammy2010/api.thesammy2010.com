@@ -12,7 +12,7 @@ func init() {
 	cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	encCfg := cfg.EncoderConfig
 	encCfg.StacktraceKey = ""
-	Logger, err = cfg.Build()
+	Logger, err = cfg.Build(zap.AddCallerSkip(1))
 	if err != nil {
 		panic(err)
 	}
