@@ -14,7 +14,7 @@ message SquashPlayer {
   // @inject_tag: `bun:",notnull"`
   string email_address = 3 [json_name = "email_address"];
   // @inject_tag: `bun:",nullzero"`
-  bytes profile_picture = 4 [json_name = "profile_picture"];
+  string profile_picture = 4 [json_name = "profile_picture"];
   // @inject_tag: `bun:",type:timestamptz,notnull,nullzero,default:now()"`
   string created_at = 5 [json_name = "created_at"];
   // @inject_tag: `bun:",type:timestamptz,notnull,nullzero,default:now()"`
@@ -25,7 +25,7 @@ message SquashPlayer {
 message CreateSquashPlayerRequest {
   string name = 1;
   string email_address = 2;
-  bytes profile_picture = 3;
+  string profile_picture = 3;
 }
 message CreateSquashPlayerResponse {
     string id = 1;
@@ -51,8 +51,7 @@ message ListSquashPlayersResponse {
 message UpdateSquashPlayerRequest {
   string id = 1;
   google.protobuf.StringValue name = 2;
-  google.protobuf.StringValue email_address = 3;
-  google.protobuf.BytesValue profile_picture = 4;
+  google.protobuf.StringValue profile_picture = 4;
 }
 message UpdateSquashPlayerResponse {
   SquashPlayer squash_player = 1;
