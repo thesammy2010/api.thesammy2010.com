@@ -1,7 +1,8 @@
-package internal
+package marshallers
 
 import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/config"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -17,7 +18,7 @@ var (
 	})
 )
 
-func GetMuxOpts(config Config) []runtime.ServeMuxOption {
+func GetMuxOpts(config config.Config) []runtime.ServeMuxOption {
 	var opts []runtime.ServeMuxOption
 	if config.HandlerEnablePrettier {
 		opts = append(opts, prettier)

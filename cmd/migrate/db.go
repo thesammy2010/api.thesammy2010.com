@@ -4,7 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"github.com/alexlast/bunzap"
-	"github.com/thesammy2010/api.thesammy2010.com/internal"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/config"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	pb "github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -13,26 +14,22 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	logger = zap.Must(zap.NewProduction())
-)
-
 // main method to run for restarting
 func main() {
 	// read config and set up logging
 	ctx := context.Background()
-	config, err := internal.LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Fatal("Failed to initialise config file", zap.Error(err))
 	}
 
 	// open connection to db
-	pgdb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(config.DatabaseURL)))
+	pgdb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(cfg.DatabaseURL)))
 	db := bun.NewDB(pgdb, pgdialect.New())
 	pgdb.SetMaxOpenConns(1)
 	bundebug.NewQueryHook(bundebug.WithVerbose(true))
 	db.AddQueryHook(bunzap.NewQueryHook(bunzap.QueryHookOptions{
-		Logger: logger,
+		Logger: logger.Logger,
 	}))
 	logger.Info("Database connection successfully established")
 	resetModels(ctx, *db)

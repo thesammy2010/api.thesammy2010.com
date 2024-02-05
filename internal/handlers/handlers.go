@@ -1,14 +1,12 @@
-package internal
+package handlers
 
 import (
 	"github.com/felixge/httpsnoop"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/config"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	"go.uber.org/zap"
 	"net/http"
 )
-
-//var (
-//	config, _ = LoadConfig()
-//)
 
 // withLogger This wrapper snoops requests and prints out logs
 func withLogging(handler http.Handler) http.Handler {
@@ -54,7 +52,7 @@ func withPrettier(h http.Handler) http.Handler {
 //}
 
 // HttpHandler exported function to wrap http handlers into one
-func HttpHandler(handler http.Handler, config Config) http.Handler {
+func HttpHandler(handler http.Handler, config config.Config) http.Handler {
 	if config.HandlerEnablePrettier {
 		handler = withPrettier(handler)
 	}
