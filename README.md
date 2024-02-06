@@ -93,12 +93,12 @@ TODO
   - Decoding JWTs in the header and a user table
   - https://developers.google.com/identity/sign-in/web/backend-auth
 - [ ] Routes & Methods
-    - [ ] `/v1/squash/players`
+    - [X] `/v1/squash/players`
       - [X] GET
       - [X] GET (list)
       - [X] POST (create)
       - [X] PATCH (update)
-      - [ ] DELETE
+      - [X] DELETE
     - [ ] `/v1/squash/games/singles`
       - [ ] GET
       - [ ] GET (list)
@@ -117,3 +117,4 @@ TODO
 - [X] Handle timestamps
 - [X] Logging
   - [X] Trace Logging
+- [ ] Handle non-registered routes

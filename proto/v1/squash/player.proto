@@ -61,9 +61,7 @@ message UpdateSquashPlayerResponse {
 message DeleteSquashPlayerRequest {
   string id = 2;
 }
-message DeleteSquashPlayerResponse {
-  string id = 3;
-}
+message DeleteSquashPlayerResponse {}
 
 // service
 service SquashPlayerService {

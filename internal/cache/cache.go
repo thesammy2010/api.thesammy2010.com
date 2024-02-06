@@ -82,7 +82,7 @@ func (c *Cache) GetSquashPlayerList(offset string, trace string) (*pb.ListSquash
 	return nil, false
 }
 
-func (c *Cache) UpdateSquashPlayer(data *pb.SquashPlayer, trace string) bool {
+func (c *Cache) UpdateSquashPlayer(data *pb.SquashPlayer, trace string) {
 	serialised, err := proto.Marshal(data)
 	logger.Debug("Updating cache", zap.String("Resource", "Player"), zap.String("ID", data.Id))
 	if err != nil {
@@ -92,19 +92,28 @@ func (c *Cache) UpdateSquashPlayer(data *pb.SquashPlayer, trace string) bool {
 			zap.String("trace", trace),
 			zap.Error(err),
 		)
-		return false
+		return
 	}
 	c.players.Set(data.Id, serialised, cache.DefaultExpiration)
-	return true
+	return
 }
 
-func (c *Cache) UpdateSquashPlayerList(offset string, data *pb.ListSquashPlayersResponse) bool {
+func (c *Cache) UpdateSquashPlayerList(offset, trace string, data *pb.ListSquashPlayersResponse) {
 	serialised, err := proto.Marshal(data)
 	logger.Debug("Updating cache", zap.String("Resource", "PlayerList"), zap.String("Offset", offset))
 	if err != nil {
-		logger.Error("Error marshalling data to bytes for cache", zap.String("Resource", "PlayerList"), zap.String("Offset", offset))
-		return false
+		logger.Error("Error marshalling data to bytes for cache",
+			zap.String("Resource", "PlayerList"),
+			zap.String("Offset", offset),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
+		return
 	}
 	c.players.Set("list-"+offset, serialised, cache.DefaultExpiration)
-	return true
+	return
+}
+
+func (c *Cache) DeleteSquashPlayer(id, trace string) {
+	c.players.Delete(id)
 }
