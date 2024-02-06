@@ -23,6 +23,10 @@ type PlayerServer struct {
 	Cache *cache.Cache
 }
 
+type RequestById interface {
+	GetId() string
+}
+
 // SquashPlayer only used for the auto update of the original model
 type SquashPlayer pb.SquashPlayer // nolint:staticcheck
 
@@ -69,15 +73,15 @@ func validateCreateSquashPlayerRequest(in *pb.CreateSquashPlayerRequest) error {
 	return nil
 }
 
-// validateGetSquashPlayerRequest function to validate incoming requests to GET /v1/squash/players/:id
-func validateGetSquashPlayerRequest(in *pb.GetSquashPlayerRequest, trace string) error {
-	if in.Id == "" {
+// validateRequestById function to validate incoming requests to GET /v1/squash/players/:id
+func validateRequestById(in RequestById, trace string) error {
+	if in.GetId() == "" {
 		return status.Error(codes.InvalidArgument, "Player `id` is required")
 	}
-	if _, err := uuid.Parse(in.Id); err != nil {
+	if _, err := uuid.Parse(in.GetId()); err != nil {
 		logger.Debug("Field is not valid UUID",
 			zap.String("Resource", "Player"),
-			zap.String("ID", in.Id),
+			zap.String("ID", in.GetId()),
 			zap.String("trace", trace),
 			zap.Error(err),
 		)
@@ -122,15 +126,19 @@ func validateUpdateSquashPlayerRequest(in *pb.UpdateSquashPlayerRequest, trace s
 // CreateSquashPlayer Function to handle incoming request for creating new squash player
 func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSquashPlayerRequest) (*pb.CreateSquashPlayerResponse, error) {
 	trace := uuid.New().String()
-
-	if err := validateCreateSquashPlayerRequest(in); err != nil {
-		return nil, err
-	}
 	var check pb.SquashPlayer
 	var response pb.SquashPlayer
 
+	// validate request
+	if err := validateCreateSquashPlayerRequest(in); err != nil {
+		return nil, err
+	}
+
 	// check if player already exists
-	err := s.DB.NewSelect().Model(&SquashPlayer{Name: in.Name}).Where("email_address = ?", in.EmailAddress).Scan(ctx, &check)
+	err := s.DB.NewSelect().
+		Model(&SquashPlayer{Name: in.Name}).
+		Where("email_address = ?", in.EmailAddress).
+		Scan(ctx, &check)
 	if err == nil {
 		if check.Id != "" {
 			return nil, status.Error(codes.AlreadyExists, "Player already exists")
@@ -170,7 +178,8 @@ func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSqua
 func (s *PlayerServer) GetSquashPlayer(ctx context.Context, in *pb.GetSquashPlayerRequest) (*pb.GetSquashPlayerResponse, error) {
 	trace := uuid.New().String()
 
-	if err := validateGetSquashPlayerRequest(in, trace); err != nil {
+	// validate request
+	if err := validateRequestById(in, trace); err != nil {
 		return nil, err
 	}
 
@@ -203,6 +212,7 @@ func (s *PlayerServer) GetSquashPlayer(ctx context.Context, in *pb.GetSquashPlay
 func (s *PlayerServer) ListSquashPlayers(ctx context.Context, in *pb.ListSquashPlayersRequest) (*pb.ListSquashPlayersResponse, error) {
 	trace := uuid.New().String()
 
+	// validate request
 	if err := validateGetSquashPlayersRequest(in, trace); err != nil {
 		return nil, err
 	}
@@ -232,14 +242,16 @@ func (s *PlayerServer) ListSquashPlayers(ctx context.Context, in *pb.ListSquashP
 	apiResponse := &pb.ListSquashPlayersResponse{SquashPlayers: response}
 
 	// update cache
-	s.Cache.UpdateSquashPlayerList(in.Offset, apiResponse)
+	s.Cache.UpdateSquashPlayerList(in.Offset, trace, apiResponse)
 
 	return apiResponse, nil
 }
 
 func (s *PlayerServer) UpdateSquashPlayer(ctx context.Context, in *pb.UpdateSquashPlayerRequest) (*pb.UpdateSquashPlayerResponse, error) {
 	trace := uuid.New().String()
+	var response pb.SquashPlayer
 
+	// validate request
 	if err := validateUpdateSquashPlayerRequest(in, trace); err != nil {
 		return nil, err
 	}
@@ -260,9 +272,12 @@ func (s *PlayerServer) UpdateSquashPlayer(ctx context.Context, in *pb.UpdateSqua
 	}
 
 	// update in db
-	var response pb.SquashPlayer
-
-	dbRes, err := s.DB.NewUpdate().Model(&SquashPlayer{Id: in.Id, ProfilePicture: in.ProfilePicture.GetValue(), Name: in.Name.GetValue()}).OmitZero().WherePK().Returning("*").Exec(ctx, &response)
+	dbRes, err := s.DB.NewUpdate().
+		Model(&SquashPlayer{Id: in.Id, ProfilePicture: in.ProfilePicture.GetValue(), Name: in.Name.GetValue()}).
+		OmitZero().
+		WherePK().
+		Returning("*").
+		Exec(ctx, &response)
 	if err != nil {
 		logger.Error("Error Running update in db",
 			zap.String("Resource", "Player"),
@@ -274,7 +289,11 @@ func (s *PlayerServer) UpdateSquashPlayer(ctx context.Context, in *pb.UpdateSqua
 	}
 	rows, err := dbRes.RowsAffected()
 	if rows == 0 {
-		logger.Warn("No rows effected from UPDATE statement", zap.String("Resource", "Player"), zap.String("ID", in.Id))
+		logger.Warn("No rows effected from UPDATE statement",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.Id),
+			zap.String("trace", trace),
+		)
 		return nil, status.Error(codes.NotFound, "Player does not exist")
 	}
 	if err != nil {
@@ -296,4 +315,67 @@ func (s *PlayerServer) UpdateSquashPlayer(ctx context.Context, in *pb.UpdateSqua
 	s.Cache.UpdateSquashPlayer(&response, trace)
 
 	return &pb.UpdateSquashPlayerResponse{SquashPlayer: &response}, nil
+}
+
+func (s *PlayerServer) DeleteSquashPlayer(ctx context.Context, in *pb.DeleteSquashPlayerRequest) (*pb.DeleteSquashPlayerResponse, error) {
+	trace := uuid.New().String()
+
+	// validate request
+	if err := validateRequestById(in, trace); err != nil {
+		return nil, err
+	}
+
+	// check cache
+	if _, ok := s.Cache.GetSquashPlayer(in.Id, trace); !ok {
+		// check db
+		if _, err := s.GetSquashPlayer(ctx, &pb.GetSquashPlayerRequest{Id: in.Id}); err != nil {
+			logger.Error("Error checking if user already exists",
+				zap.String("Resource", "Player"),
+				zap.String("ID", in.Id),
+				zap.String("trace", trace),
+				zap.Error(err),
+			)
+			return nil, err
+		}
+	}
+
+	// delete from db
+	dbRes, err := s.DB.NewDelete().Model(&SquashPlayer{Id: in.Id}).WherePK().Returning("NULL").Exec(ctx)
+	if err != nil {
+		logger.Error("Error Running update in db",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.Id),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
+		return nil, status.Error(codes.Internal, "Error occurred updating resource")
+	}
+	rows, err := dbRes.RowsAffected()
+	if rows == 0 {
+		logger.Warn("No rows effected from DELETE statement",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.Id),
+			zap.String("trace", trace),
+		)
+		return nil, status.Error(codes.NotFound, "Player does not exist")
+	}
+	if err != nil {
+		logger.Error("Error occurred when deleting record",
+			zap.String("Resource", "Player"),
+			zap.String("ID", in.Id),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
+		return nil, status.Error(codes.Internal, "Internal error deleting Player")
+	}
+	logger.Debug("Resource successfully deleted",
+		zap.String("Resource", "Player"),
+		zap.String("ID", in.Id),
+		zap.String("trace", trace),
+	)
+
+	// delete from cache
+	s.Cache.DeleteSquashPlayer(in.Id, trace)
+
+	return &pb.DeleteSquashPlayerResponse{}, nil
 }
