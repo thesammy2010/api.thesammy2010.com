@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "google/api/annotations.proto";
 import "google/protobuf/wrappers.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/thesammy2010/api.thesammy2010.com/proto";
@@ -11,29 +12,41 @@ message SquashPlayer {
   string id = 1;
   // @inject_tag: `bun:",notnull"`
   string name = 2;
-  // @inject_tag: `bun:",notnull"`
-  string email_address = 3 [json_name = "email_address"];
+  // @inject_tag: `bun:",nullzero"`
+  string email_address = 3 [json_name = "email_address", deprecated = true];
   // @inject_tag: `bun:",nullzero"`
   string profile_picture = 4 [json_name = "profile_picture"];
   // @inject_tag: `bun:",type:timestamptz,notnull,nullzero,default:now()"`
   string created_at = 5 [json_name = "created_at"];
   // @inject_tag: `bun:",type:timestamptz,notnull,nullzero,default:now()"`
   string updated_at = 6 [json_name = "updated_at"];
+  // @inject_tag: `json:"-"`
+  string google_account_id = 7 [json_name = "google_account_id"];
 }
 
 // CREATE
 message CreateSquashPlayerRequest {
+  option deprecated = true;
   string name = 1;
-  string email_address = 2;
+  string email_address = 2 [deprecated = true];
   string profile_picture = 3;
+  string google_account_id = 4;
 }
 message CreateSquashPlayerResponse {
-    string id = 1;
+  string id = 1;
+}
+
+enum GetSquashPlayerRequestType {
+  METHOD_UNSET = 0;
+  METHOD_SQUASH_PLAYER_ID = 1;
+  METHOD_GOOGLE_ACCOUNT_ID = 2;
 }
 
 // READ 1
 message GetSquashPlayerRequest {
   string id = 1;
+  string googleAccountId = 2;
+  GetSquashPlayerRequestType method = 3;
 }
 message GetSquashPlayerResponse {
   SquashPlayer squash_player = 2;
@@ -70,6 +83,8 @@ service SquashPlayerService {
       post: "/v1/squash/players";
       body: "*";
     };
+    // will be handled differently
+    option deprecated = true;
   }
   rpc GetSquashPlayer(GetSquashPlayerRequest) returns (GetSquashPlayerResponse) {
     option(google.api.http) = {
@@ -90,6 +105,11 @@ service SquashPlayerService {
   rpc DeleteSquashPlayer(DeleteSquashPlayerRequest) returns(DeleteSquashPlayerResponse) {
     option(google.api.http) = {
       delete: "/v1/squash/players/{id}";
+    };
+  };
+  rpc SignUp(google.protobuf.Empty) returns(CreateSquashPlayerResponse) {
+    option(google.api.http) = {
+      put: "/v1/squash/players/signup"
     };
   };
 }

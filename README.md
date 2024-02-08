@@ -89,17 +89,12 @@ PATCH /v1/squash/players/76d34b99-1e10-4693-b2c2-20b129ad4da1 -d '{"name": "TheS
 TODO
 - [ ] Authentication 
   - [X] via Google
-    - [ ] Need Google Credentials for production
-  - [ ] Session token and cookies 
 - [ ] Routes & Methods
-    - [ ] `/v1/squash/auth/login`
-      - [ ] POST (Create session token, save as cookie)
-    - [ ] `/v1/squash/auth/logout`
-      - [ ] POST (Invalidate session token)
+    - [X] `/v1/squash/players/signup` 
     - [X] `/v1/squash/players`
       - [X] GET
       - [X] GET (list)
-      - [X] POST (create)
+      - [ ] POST (create) //Deprecated in place of `/v1/squash/players/signup`
       - [X] PATCH (update)
       - [X] DELETE
     - [ ] `/v1/squash/games/singles`

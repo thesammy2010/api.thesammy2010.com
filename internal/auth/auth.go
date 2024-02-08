@@ -7,7 +7,6 @@ import (
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	"go.uber.org/zap"
 	"google.golang.org/api/idtoken"
-	"net/http"
 	"strings"
 )
 
@@ -25,9 +24,12 @@ func (r *RequestError) AsJson() string {
 	}
 }
 
-func GetTokenFromRequest(auth http.Header) (*string, *RequestError) {
+func GetTokenFromRequest(auth map[string][]string) (*string, *RequestError) {
 
 	header, ok := auth["Authorization"]
+	if !ok {
+		header, ok = auth["authorization"]
+	}
 	headerString := strings.Join(header, "")
 	parts := strings.Split(headerString, " ")
 
@@ -47,11 +49,7 @@ func GetTokenFromRequest(auth http.Header) (*string, *RequestError) {
 	return &parts[1], nil
 }
 
-type AuthenticatedUser struct {
-	UserId string
-}
-
-func ValidateToken(ctx context.Context, cfg config.Config, token string) (*AuthenticatedUser, *RequestError) {
+func ValidateToken(ctx context.Context, cfg config.Config, token string) (map[string]interface{}, *RequestError) {
 	tokenValidator, err := idtoken.NewValidator(ctx)
 	if err != nil {
 		logger.Warn("Failed to initialised ID token validator", zap.Error(err))
@@ -63,6 +61,5 @@ func ValidateToken(ctx context.Context, cfg config.Config, token string) (*Authe
 		logger.Warn("Failed to validate ID token", zap.Error(err))
 		return nil, &RequestError{err.Error(), false}
 	}
-	userId := payload.Claims["sub"].(string)
-	return &AuthenticatedUser{UserId: userId}, nil
+	return payload.Claims, nil
 }
