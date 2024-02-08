@@ -55,13 +55,13 @@ func ValidateToken(ctx context.Context, cfg config.Config, token string) (*Authe
 	tokenValidator, err := idtoken.NewValidator(ctx)
 	if err != nil {
 		logger.Warn("Failed to initialised ID token validator", zap.Error(err))
-		return nil, &RequestError{"Error validating ID token", true}
+		return nil, &RequestError{"Internal Server Error", true}
 	}
 
 	payload, err := tokenValidator.Validate(context.Background(), token, cfg.ClientId)
 	if err != nil {
 		logger.Warn("Failed to validate ID token", zap.Error(err))
-		return nil, &RequestError{"Error validating ID token", true}
+		return nil, &RequestError{err.Error(), false}
 	}
 	userId := payload.Claims["sub"].(string)
 	return &AuthenticatedUser{UserId: userId}, nil
