@@ -4,23 +4,29 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/uuid"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/auth"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/cache"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/config"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
 	"github.com/uptrace/bun"
 	"go.uber.org/zap"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"net/mail"
+	"strings"
 	"time"
 )
 
 // PlayerServer SquashPlayer server type
 type PlayerServer struct {
 	pb.UnimplementedSquashPlayerServiceServer
-	DB    *bun.DB
-	Cache *cache.Cache
+	DB     *bun.DB
+	Cache  *cache.Cache
+	Config *config.Config
 }
 
 type RequestById interface {
@@ -54,23 +60,14 @@ func (p *SquashPlayer) AfterCreateTable(ctx context.Context, query *bun.CreateTa
 		Index("squash_player_id_idx").
 		Column("id").
 		Exec(ctx)
+	if err == nil {
+		_, err = query.DB().NewCreateIndex().
+			Model((*SquashPlayer)(nil)).
+			Index("squash_player_google_account_id_idx").
+			Column("google_account_id").
+			Exec(ctx)
+	}
 	return err
-}
-
-// validateCreateSquashPlayerRequest Function to validate if request is valid
-func validateCreateSquashPlayerRequest(in *pb.CreateSquashPlayerRequest) error {
-	// check name
-	if in.Name == "" {
-		return status.Error(codes.InvalidArgument, "Player `name` is required")
-	}
-	// check email address
-	if in.EmailAddress == "" {
-		return status.Error(codes.InvalidArgument, "Player `email_address` is required")
-	}
-	if _, err := mail.ParseAddress(in.EmailAddress); err != nil {
-		return status.Error(codes.InvalidArgument, "Player `email_address` is not valid RFC 5322 email address")
-	}
-	return nil
 }
 
 // validateRequestById function to validate incoming requests to GET /v1/squash/players/:id
@@ -123,55 +120,18 @@ func validateUpdateSquashPlayerRequest(in *pb.UpdateSquashPlayerRequest, trace s
 	return nil
 }
 
-// CreateSquashPlayer Function to handle incoming request for creating new squash player
-func (s *PlayerServer) CreateSquashPlayer(ctx context.Context, in *pb.CreateSquashPlayerRequest) (*pb.CreateSquashPlayerResponse, error) {
-	trace := uuid.New().String()
-	var check pb.SquashPlayer
-	var response pb.SquashPlayer
-
-	// validate request
-	if err := validateCreateSquashPlayerRequest(in); err != nil {
-		return nil, err
-	}
-
-	// check if player already exists
-	err := s.DB.NewSelect().
-		Model(&SquashPlayer{Name: in.Name}).
-		Where("email_address = ?", in.EmailAddress).
-		Scan(ctx, &check)
-	if err == nil {
-		if check.Id != "" {
-			return nil, status.Error(codes.AlreadyExists, "Player already exists")
+func validateGetSquashPlayerRequest(in *pb.GetSquashPlayerRequest, trace string) error {
+	switch in.Method {
+	case pb.GetSquashPlayerRequestType_METHOD_UNSET:
+		return status.Error(codes.InvalidArgument, "Value for `method` is not valid")
+	case pb.GetSquashPlayerRequestType_METHOD_SQUASH_PLAYER_ID:
+		return validateRequestById(in, trace)
+	case pb.GetSquashPlayerRequestType_METHOD_GOOGLE_ACCOUNT_ID:
+		if in.Id == "" {
+			return status.Error(codes.InvalidArgument, "Player `id` is required")
 		}
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		logger.Error("Unknown error checking for existing of resource",
-			zap.String("Resource", "Player"),
-			zap.String("ID", in.EmailAddress),
-			zap.String("trace", trace),
-			zap.Error(err),
-		)
-		return nil, status.Error(codes.Internal, "Internal error registering player")
-	}
-
-	// create new user
-	_, err = s.DB.NewInsert().Model(
-		&SquashPlayer{Name: in.Name, EmailAddress: in.EmailAddress, ProfilePicture: in.ProfilePicture},
-	).Returning("*").Exec(ctx, &response)
-	if err != nil {
-		logger.Error("Unknown error creating resource",
-			zap.String("Resource", "Player"),
-			zap.String("ID", in.EmailAddress),
-			zap.String("trace", trace),
-			zap.Error(err),
-		)
-		return nil, status.Error(codes.Internal, "Failed to register new player")
-	}
-
-	// update cache
-	s.Cache.UpdateSquashPlayer(&response, trace)
-
-	return &pb.CreateSquashPlayerResponse{Id: response.Id}, err
+	return nil
 }
 
 // GetSquashPlayer Function to fetch squash player from db
@@ -179,17 +139,27 @@ func (s *PlayerServer) GetSquashPlayer(ctx context.Context, in *pb.GetSquashPlay
 	trace := uuid.New().String()
 
 	// validate request
-	if err := validateRequestById(in, trace); err != nil {
+	if err := validateGetSquashPlayerRequest(in, trace); err != nil {
 		return nil, err
 	}
 
 	// check cache
-	if player, ok := s.Cache.GetSquashPlayer(in.Id, trace); ok {
+	if player, ok := s.Cache.GetSquashPlayer(in.Id, in.Method, trace); ok {
 		return &pb.GetSquashPlayerResponse{SquashPlayer: player}, nil
 	}
 
+	// construct query
+	query := s.DB.NewSelect()
+	switch in.Method {
+	case pb.GetSquashPlayerRequestType_METHOD_SQUASH_PLAYER_ID:
+		query = query.Model(&SquashPlayer{Id: in.Id}).WherePK()
+	case pb.GetSquashPlayerRequestType_METHOD_GOOGLE_ACCOUNT_ID:
+		query = query.Model(&SquashPlayer{}).Where("google_account_id = ?", in.Id)
+	}
+
+	// execute query
 	var response pb.SquashPlayer
-	if err := s.DB.NewSelect().Model(&SquashPlayer{Id: in.Id}).WherePK().Scan(ctx, &response); err != nil {
+	if err := query.Scan(ctx, &response); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "Player does not exist")
 		}
@@ -257,7 +227,7 @@ func (s *PlayerServer) UpdateSquashPlayer(ctx context.Context, in *pb.UpdateSqua
 	}
 
 	// check cache if user exists in cache or check db
-	_, ok := s.Cache.GetSquashPlayer(in.Id, trace)
+	_, ok := s.Cache.GetSquashPlayer(in.Id, pb.GetSquashPlayerRequestType_METHOD_SQUASH_PLAYER_ID, trace)
 	if !ok {
 		_, err := s.GetSquashPlayer(ctx, &pb.GetSquashPlayerRequest{Id: in.Id})
 		if err != nil {
@@ -326,17 +296,9 @@ func (s *PlayerServer) DeleteSquashPlayer(ctx context.Context, in *pb.DeleteSqua
 	}
 
 	// check cache
-	if _, ok := s.Cache.GetSquashPlayer(in.Id, trace); !ok {
-		// check db
-		if _, err := s.GetSquashPlayer(ctx, &pb.GetSquashPlayerRequest{Id: in.Id}); err != nil {
-			logger.Error("Error checking if user already exists",
-				zap.String("Resource", "Player"),
-				zap.String("ID", in.Id),
-				zap.String("trace", trace),
-				zap.Error(err),
-			)
-			return nil, err
-		}
+	check, err := s.GetSquashPlayer(ctx, &pb.GetSquashPlayerRequest{Id: in.Id, Method: pb.GetSquashPlayerRequestType_METHOD_SQUASH_PLAYER_ID})
+	if err != nil {
+		return nil, err
 	}
 
 	// delete from db
@@ -375,7 +337,83 @@ func (s *PlayerServer) DeleteSquashPlayer(ctx context.Context, in *pb.DeleteSqua
 	)
 
 	// delete from cache
-	s.Cache.DeleteSquashPlayer(in.Id, trace)
+	s.Cache.DeleteSquashPlayer(check.SquashPlayer, trace)
 
 	return &pb.DeleteSquashPlayerResponse{}, nil
+}
+
+func (s *PlayerServer) SignUp(ctx context.Context, in *empty.Empty) (*pb.CreateSquashPlayerResponse, error) {
+
+	trace := uuid.New().String()
+	var response pb.SquashPlayer
+
+	// get header from ctx
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		logger.Warn("Failed to read request context", zap.String("trace", trace))
+		return nil, status.Error(codes.Internal, "Internal Error")
+	}
+	token, rErr := auth.GetTokenFromRequest(md)
+	if rErr != nil {
+		logger.Debug("Invalid value for Authorization header", zap.String("error", rErr.Error))
+		return nil, status.Error(codes.InvalidArgument, rErr.AsJson())
+	}
+
+	// validate token
+	payload, rErr := auth.ValidateToken(ctx, *s.Config, *token)
+	if rErr != nil {
+		logger.Debug("Error validating token", zap.String("error", rErr.Error))
+		return nil, status.Error(codes.InvalidArgument, rErr.AsJson())
+	}
+
+	// get attributes from token
+	rawPlayer := &SquashPlayer{
+		GoogleAccountId: payload["sub"].(string),
+		Name:            payload["name"].(string),
+		ProfilePicture:  payload["picture"].(string),
+	}
+
+	// check if player already exists
+	check, err := s.GetSquashPlayer(ctx, &pb.GetSquashPlayerRequest{Id: rawPlayer.GoogleAccountId, Method: pb.GetSquashPlayerRequestType_METHOD_GOOGLE_ACCOUNT_ID})
+	if err == nil {
+		returnErr := status.New(codes.AlreadyExists, "Player already exists")
+		details := &errdetails.ErrorInfo{
+			Reason: "There can only be one 1 squash player for every Google account",
+			Metadata: map[string]string{
+				"squash_player_id": check.SquashPlayer.Id,
+			},
+		}
+		returnErr, err := returnErr.WithDetails(details)
+		if err != nil {
+			logger.Error("Unknown error creating error with details", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Unknown error occurred")
+		}
+		return nil, returnErr.Err()
+	}
+	if !strings.HasPrefix(err.Error(), "rpc error: code = NotFound") {
+		logger.Error("Unknown error creating resource",
+			zap.String("Resource", "Player"),
+			zap.String("ID", rawPlayer.GoogleAccountId),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
+		return nil, status.Error(codes.Internal, "Failed to register new player")
+	}
+
+	// create user
+	_, err = s.DB.NewInsert().Model(rawPlayer).Returning("*").Exec(ctx, &response)
+	if err != nil {
+		logger.Error("Unknown error creating resource",
+			zap.String("Resource", "Player"),
+			zap.String("ID", rawPlayer.GoogleAccountId),
+			zap.String("trace", trace),
+			zap.Error(err),
+		)
+		return nil, status.Error(codes.Internal, "Failed to register new player")
+	}
+	// update cache
+	s.Cache.UpdateSquashPlayer(&response, trace)
+
+	// return user
+	return &pb.CreateSquashPlayerResponse{Id: response.Id}, nil
 }

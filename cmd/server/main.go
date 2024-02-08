@@ -68,7 +68,11 @@ func main() {
 	// start gRPC squashPlayerServer
 	s := grpc.NewServer()
 	// Register SquashPlayer endpoint
-	pb.RegisterSquashPlayerServiceServer(s, &squashplayer.PlayerServer{DB: db, Cache: cache.NewCache(cfg.CacheDefaultExpiration, cfg.CachePurgeTime)})
+	pb.RegisterSquashPlayerServiceServer(s, &squashplayer.PlayerServer{
+		DB:     db,
+		Cache:  cache.NewCache(cfg.CacheDefaultExpiration, cfg.CachePurgeTime),
+		Config: &cfg,
+	})
 	logger.Info("Serving gRPC", zap.String("Port", cfg.GrpcPort))
 	go func() {
 		logger.Fatal("Error serving gRPC", zap.Error(s.Serve(lis)))

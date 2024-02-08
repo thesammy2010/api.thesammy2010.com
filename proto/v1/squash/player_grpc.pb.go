@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -24,17 +25,20 @@ const (
 	SquashPlayerService_ListSquashPlayers_FullMethodName  = "/SquashPlayerService/ListSquashPlayers"
 	SquashPlayerService_UpdateSquashPlayer_FullMethodName = "/SquashPlayerService/UpdateSquashPlayer"
 	SquashPlayerService_DeleteSquashPlayer_FullMethodName = "/SquashPlayerService/DeleteSquashPlayer"
+	SquashPlayerService_SignUp_FullMethodName             = "/SquashPlayerService/SignUp"
 )
 
 // SquashPlayerServiceClient is the client API for SquashPlayerService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SquashPlayerServiceClient interface {
+	// Deprecated: Do not use.
 	CreateSquashPlayer(ctx context.Context, in *CreateSquashPlayerRequest, opts ...grpc.CallOption) (*CreateSquashPlayerResponse, error)
 	GetSquashPlayer(ctx context.Context, in *GetSquashPlayerRequest, opts ...grpc.CallOption) (*GetSquashPlayerResponse, error)
 	ListSquashPlayers(ctx context.Context, in *ListSquashPlayersRequest, opts ...grpc.CallOption) (*ListSquashPlayersResponse, error)
 	UpdateSquashPlayer(ctx context.Context, in *UpdateSquashPlayerRequest, opts ...grpc.CallOption) (*UpdateSquashPlayerResponse, error)
 	DeleteSquashPlayer(ctx context.Context, in *DeleteSquashPlayerRequest, opts ...grpc.CallOption) (*DeleteSquashPlayerResponse, error)
+	SignUp(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*CreateSquashPlayerResponse, error)
 }
 
 type squashPlayerServiceClient struct {
@@ -45,6 +49,7 @@ func NewSquashPlayerServiceClient(cc grpc.ClientConnInterface) SquashPlayerServi
 	return &squashPlayerServiceClient{cc}
 }
 
+// Deprecated: Do not use.
 func (c *squashPlayerServiceClient) CreateSquashPlayer(ctx context.Context, in *CreateSquashPlayerRequest, opts ...grpc.CallOption) (*CreateSquashPlayerResponse, error) {
 	out := new(CreateSquashPlayerResponse)
 	err := c.cc.Invoke(ctx, SquashPlayerService_CreateSquashPlayer_FullMethodName, in, out, opts...)
@@ -90,15 +95,26 @@ func (c *squashPlayerServiceClient) DeleteSquashPlayer(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *squashPlayerServiceClient) SignUp(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*CreateSquashPlayerResponse, error) {
+	out := new(CreateSquashPlayerResponse)
+	err := c.cc.Invoke(ctx, SquashPlayerService_SignUp_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SquashPlayerServiceServer is the server API for SquashPlayerService service.
 // All implementations should embed UnimplementedSquashPlayerServiceServer
 // for forward compatibility
 type SquashPlayerServiceServer interface {
+	// Deprecated: Do not use.
 	CreateSquashPlayer(context.Context, *CreateSquashPlayerRequest) (*CreateSquashPlayerResponse, error)
 	GetSquashPlayer(context.Context, *GetSquashPlayerRequest) (*GetSquashPlayerResponse, error)
 	ListSquashPlayers(context.Context, *ListSquashPlayersRequest) (*ListSquashPlayersResponse, error)
 	UpdateSquashPlayer(context.Context, *UpdateSquashPlayerRequest) (*UpdateSquashPlayerResponse, error)
 	DeleteSquashPlayer(context.Context, *DeleteSquashPlayerRequest) (*DeleteSquashPlayerResponse, error)
+	SignUp(context.Context, *emptypb.Empty) (*CreateSquashPlayerResponse, error)
 }
 
 // UnimplementedSquashPlayerServiceServer should be embedded to have forward compatible implementations.
@@ -119,6 +135,9 @@ func (UnimplementedSquashPlayerServiceServer) UpdateSquashPlayer(context.Context
 }
 func (UnimplementedSquashPlayerServiceServer) DeleteSquashPlayer(context.Context, *DeleteSquashPlayerRequest) (*DeleteSquashPlayerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSquashPlayer not implemented")
+}
+func (UnimplementedSquashPlayerServiceServer) SignUp(context.Context, *emptypb.Empty) (*CreateSquashPlayerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignUp not implemented")
 }
 
 // UnsafeSquashPlayerServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -222,6 +241,24 @@ func _SquashPlayerService_DeleteSquashPlayer_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SquashPlayerService_SignUp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SquashPlayerServiceServer).SignUp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SquashPlayerService_SignUp_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SquashPlayerServiceServer).SignUp(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SquashPlayerService_ServiceDesc is the grpc.ServiceDesc for SquashPlayerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -248,6 +285,10 @@ var SquashPlayerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteSquashPlayer",
 			Handler:    _SquashPlayerService_DeleteSquashPlayer_Handler,
+		},
+		{
+			MethodName: "SignUp",
+			Handler:    _SquashPlayerService_SignUp_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

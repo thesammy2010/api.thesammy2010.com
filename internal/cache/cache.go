@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"github.com/patrickmn/go-cache"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
@@ -8,6 +9,11 @@ import (
 	"google.golang.org/protobuf/proto"
 	"time"
 )
+
+type ReferencableSquashPlayer interface {
+	GetId() string
+	GetGoogleAccountId() string
+}
 
 type Cache struct {
 	players *cache.Cache
@@ -24,12 +30,14 @@ func NewCache(defaultExpiration, cachePurgeTime int) *Cache {
 	}
 }
 
-func (c *Cache) GetSquashPlayer(id, trace string) (*pb.SquashPlayer, bool) {
-	data, ok := c.players.Get(id)
+func (c *Cache) GetSquashPlayer(id string, method pb.GetSquashPlayerRequestType, trace string) (*pb.SquashPlayer, bool) {
+	key := fmt.Sprintf("%s-%s", method.String(), id)
+	data, ok := c.players.Get(key)
 	if ok {
 		logger.Debug("Resource found in cache",
 			zap.String("Resource", "Player"),
 			zap.String("ID", id),
+			zap.String("method", method.String()),
 			zap.String("trace", trace),
 		)
 		var player pb.SquashPlayer
@@ -38,6 +46,7 @@ func (c *Cache) GetSquashPlayer(id, trace string) (*pb.SquashPlayer, bool) {
 			logger.Error("Failed to read cache for resource",
 				zap.String("Resource", "Player"),
 				zap.String("ID", id),
+				zap.String("method", method.String()),
 				zap.String("trace", trace),
 				zap.Error(err),
 			)
@@ -48,6 +57,7 @@ func (c *Cache) GetSquashPlayer(id, trace string) (*pb.SquashPlayer, bool) {
 	logger.Debug("Resource not in cache",
 		zap.String("Resource", "Player"),
 		zap.String("ID", id),
+		zap.String("method", method.String()),
 		zap.String("trace", trace),
 	)
 	return nil, false
@@ -94,7 +104,8 @@ func (c *Cache) UpdateSquashPlayer(data *pb.SquashPlayer, trace string) {
 		)
 		return
 	}
-	c.players.Set(data.Id, serialised, cache.DefaultExpiration)
+	c.players.Set(fmt.Sprintf("%s-%s", pb.GetSquashPlayerRequestType_METHOD_SQUASH_PLAYER_ID.String(), data.Id), serialised, cache.DefaultExpiration)
+	c.players.Set(fmt.Sprintf("%s-%s", pb.GetSquashPlayerRequestType_METHOD_GOOGLE_ACCOUNT_ID.String(), data.GoogleAccountId), serialised, cache.DefaultExpiration)
 }
 
 func (c *Cache) UpdateSquashPlayerList(offset, trace string, data *pb.ListSquashPlayersResponse) {
@@ -112,6 +123,7 @@ func (c *Cache) UpdateSquashPlayerList(offset, trace string, data *pb.ListSquash
 	c.players.Set("list-"+offset, serialised, cache.DefaultExpiration)
 }
 
-func (c *Cache) DeleteSquashPlayer(id, trace string) {
-	c.players.Delete(id)
+func (c *Cache) DeleteSquashPlayer(data ReferencableSquashPlayer, trace string) {
+	c.players.Delete(fmt.Sprintf("%s-%s", pb.GetSquashPlayerRequestType_METHOD_SQUASH_PLAYER_ID.String(), data.GetId()))
+	c.players.Delete(fmt.Sprintf("%s-%s", pb.GetSquashPlayerRequestType_METHOD_GOOGLE_ACCOUNT_ID.String(), data.GetGoogleAccountId()))
 }

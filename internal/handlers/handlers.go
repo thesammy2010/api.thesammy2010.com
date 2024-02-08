@@ -43,7 +43,7 @@ func withJwtAuth(cfg config.Config, next http.Handler) http.HandlerFunc {
 			return
 		}
 
-		user, err := auth.ValidateToken(ctx, cfg, *token)
+		_, err = auth.ValidateToken(ctx, cfg, *token)
 		if err != nil {
 			if err.InternalError {
 				http.Error(w, err.AsJson(), http.StatusInternalServerError)
@@ -52,9 +52,6 @@ func withJwtAuth(cfg config.Config, next http.Handler) http.HandlerFunc {
 			}
 			return
 		}
-
-		w.Header().Set("X-Google-User-Id", user.UserId)
-
 		next.ServeHTTP(w, r)
 	}
 }
