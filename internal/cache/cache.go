@@ -95,7 +95,6 @@ func (c *Cache) UpdateSquashPlayer(data *pb.SquashPlayer, trace string) {
 		return
 	}
 	c.players.Set(data.Id, serialised, cache.DefaultExpiration)
-	return
 }
 
 func (c *Cache) UpdateSquashPlayerList(offset, trace string, data *pb.ListSquashPlayersResponse) {
@@ -111,7 +110,6 @@ func (c *Cache) UpdateSquashPlayerList(offset, trace string, data *pb.ListSquash
 		return
 	}
 	c.players.Set("list-"+offset, serialised, cache.DefaultExpiration)
-	return
 }
 
 func (c *Cache) DeleteSquashPlayer(id, trace string) {

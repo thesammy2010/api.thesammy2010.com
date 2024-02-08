@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"github.com/felixge/httpsnoop"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/auth"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/config"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	"go.uber.org/zap"
@@ -30,35 +32,41 @@ func withPrettier(h http.Handler) http.Handler {
 	})
 }
 
-//// withBasicAuth this handler does basic auth checking
-//func withBasicAuth(h http.Handler) http.Handler {
-//	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//		auth_header_slice, ok := r.Header["Authorization"]
-//		if !ok {
-//			newBody := `{"error": "Request must be authorized using the Authorization HTTP header"}`
-//			r.Body = io.NopCloser(strings.NewReader(newBody))
-//			r.ContentLength = int64(len(newBody))
-//			r.Response.StatusCode = http.StatusBadRequest
-//		}
-//		auth_header_bytes := strings.Join(auth_header_slice, "")
-//		if subtle.ConstantTimeCompare([]byte(config.ApiKey), []byte(auth_header_bytes)) == 0 {
-//			newBody := `{"error": "Credentials are invalid"}`
-//			r.Body = io.NopCloser(strings.NewReader(newBody))
-//			r.ContentLength = int64(len(newBody))
-//			r.Response.StatusCode = http.StatusForbidden
-//		}
-//		h.ServeHTTP(w, r)
-//	})
-//}
+func withJwtAuth(cfg config.Config, next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		ctx := context.Background()
+
+		token, err := auth.GetTokenFromRequest(r.Header)
+		if err != nil {
+			http.Error(w, err.AsJson(), http.StatusForbidden)
+			return
+		}
+
+		user, err := auth.ValidateToken(ctx, cfg, *token)
+		if err != nil {
+			if err.InternalError {
+				http.Error(w, err.AsJson(), http.StatusInternalServerError)
+			} else {
+				http.Error(w, err.AsJson(), http.StatusForbidden)
+			}
+			return
+		}
+
+		w.Header().Set("X-Google-User-Id", user.UserId)
+
+		next.ServeHTTP(w, r)
+	}
+}
 
 // HttpHandler exported function to wrap http handlers into one
 func HttpHandler(handler http.Handler, config config.Config) http.Handler {
 	if config.HandlerEnablePrettier {
 		handler = withPrettier(handler)
 	}
-	//if config.HandlerEnableBasicAuth {
-	//	handler = withBasicAuth(handler)
-	//}
+	if config.HandlerEnableAuth {
+		handler = withJwtAuth(config, handler)
+	}
 	if config.HandlerEnableLogging {
 		handler = withLogging(handler)
 	}

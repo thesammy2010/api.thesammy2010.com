@@ -13,10 +13,11 @@ type Config struct {
 	GatewayPort string `mapstructure:"PORT"`
 	DatabaseURL string `mapstructure:"DATABASE_URL"`
 	ApiKey      string `mapstructure:"API_KEY"`
+	ClientId    string `mapstructure:"CLIENT_ID"`
 	// http handler flags
-	HandlerEnableLogging   bool `mapstructure:"HANDLERS_ENABLE_LOGGING"`
-	HandlerEnablePrettier  bool `mapstructure:"HANDLERS_ENABLE_PRETTIER"`
-	HandlerEnableBasicAuth bool `mapstructure:"HANDLERS_ENABLE_BASIC_AUTH"`
+	HandlerEnableLogging  bool `mapstructure:"HANDLERS_ENABLE_LOGGING"`
+	HandlerEnablePrettier bool `mapstructure:"HANDLERS_ENABLE_PRETTIER"`
+	HandlerEnableAuth     bool `mapstructure:"HANDLERS_ENABLE_AUTH"`
 	// Cache options
 	CacheDefaultExpiration int `mapstructure:"CACHE_DEFAULT_EXPIRATION"`
 	CachePurgeTime         int `mapstructure:"CACHE_PURGE_TIME"`
@@ -28,8 +29,8 @@ func LoadConfig() (config Config, err error) {
 	viper.SetDefault("GRPC_PORT", "8090")
 	viper.SetDefault("API_KEY", "")
 	viper.SetDefault("HANDLERS_ENABLE_LOGGING", true)
-	viper.SetDefault("HANDLERS_ENABLE_PRETTIER", false)
-	viper.SetDefault("HANDLERS_ENABLE_BASIC_AUTH", false)
+	viper.SetDefault("HANDLERS_ENABLE_PRETTIER", true)
+	viper.SetDefault("HANDLERS_ENABLE_AUTH", true)
 	viper.SetDefault("CACHE_DEFAULT_EXPIRATION", 5)
 	viper.SetDefault("CACHE_PURGE_TIME", 10)
 	viper.AddConfigPath(".")
@@ -54,7 +55,7 @@ func LoadConfig() (config Config, err error) {
 		zap.String("GatewayPort", config.GatewayPort),
 		zap.Bool("HandlerEnableLogging", config.HandlerEnableLogging),
 		zap.Bool("HandlerEnablePrettier", config.HandlerEnablePrettier),
-		zap.Bool("HandlerEnableBasicAuth", config.HandlerEnableBasicAuth),
+		zap.Bool("HandlerEnableAuth", config.HandlerEnableAuth),
 		zap.Int("CacheDefaultExpiration", config.CacheDefaultExpiration),
 		zap.Int("CachePurgeTime", config.CachePurgeTime),
 	)
