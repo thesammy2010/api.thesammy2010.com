@@ -87,12 +87,15 @@ PATCH /v1/squash/players/76d34b99-1e10-4693-b2c2-20b129ad4da1 -d '{"name": "TheS
 ```
 
 TODO
-- [ ] Authentication via Google
-  - https://developers.google.com/identity/openid-connect/openid-connect
-  - https://fireship.io/courses/stripe-js/customers-auth/
-  - Decoding JWTs in the header and a user table
-  - https://developers.google.com/identity/sign-in/web/backend-auth
+- [ ] Authentication 
+  - [X] via Google
+    - [ ] Need Google Credentials for production
+  - [ ] Session token and cookies 
 - [ ] Routes & Methods
+    - [ ] `/v1/squash/auth/login`
+      - [ ] POST (Create session token, save as cookie)
+    - [ ] `/v1/squash/auth/logout`
+      - [ ] POST (Invalidate session token)
     - [X] `/v1/squash/players`
       - [X] GET
       - [X] GET (list)
