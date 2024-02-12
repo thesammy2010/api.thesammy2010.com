@@ -30,7 +30,7 @@ message CreateSquashPlayerRequest {
   string name = 1;
   string email_address = 2 [deprecated = true];
   string profile_picture = 3;
-  string google_account_id = 4;
+  string google_account_id = 4 [json_name = "google_account_id"];
 }
 message CreateSquashPlayerResponse {
   string id = 1;
@@ -45,11 +45,11 @@ enum GetSquashPlayerRequestType {
 // READ 1
 message GetSquashPlayerRequest {
   string id = 1;
-  string googleAccountId = 2;
+  string googleAccountId = 2 [json_name = "google_account_id"];
   GetSquashPlayerRequestType method = 3;
 }
 message GetSquashPlayerResponse {
-  SquashPlayer squash_player = 2;
+  SquashPlayer squash_player = 2 [json_name = "squash_player"];
 }
 
 // READ ALL
@@ -57,7 +57,7 @@ message ListSquashPlayersRequest {
   string offset = 1 [json_name = "offset"];
 }
 message ListSquashPlayersResponse {
-  repeated SquashPlayer squash_players = 1;
+  repeated SquashPlayer squash_players = 1 [json_name = "squash_player"];
 }
 
 // UPDATE
@@ -67,7 +67,7 @@ message UpdateSquashPlayerRequest {
   google.protobuf.StringValue profile_picture = 4;
 }
 message UpdateSquashPlayerResponse {
-  SquashPlayer squash_player = 1;
+  SquashPlayer squash_player = 1 [json_name = "squash_player"];
 }
 
 // DELETE

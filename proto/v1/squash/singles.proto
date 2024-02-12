@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+import "google/api/annotations.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/thesammy2010/api.thesammy2010.com/proto";
+
+message SquashSinglesGame {
+  // @inject_tag: `bun:",type:uuid,pk,default:gen_random_uuid()"`
+  string id = 1;
+  string name = 2;
+  // @inject_tag: `bun:",notnull,type:uuid"`
+  string player1_id = 3 [json_name = "player1_id"];
+  // @inject_tag: `bun:",notnull,type:uuid"`
+  string player2_id = 4 [json_name = "player2_id"];
+  // @inject_tag: `bun:",notnull,type:integer"`
+  int32 player1_score = 5 [json_name = "player1_score"];
+  // @inject_tag: `bun:",notnull,type:integer"`
+  int32 player2_score = 6 [json_name = "player2_score"];
+  // @inject_tag: `bun:",notnull:default:false"`
+  bool is_game_complete = 7 [json_name = "is_game_complete"];
+  // @inject_tag: `bun:",notnull,type:uuid"`
+  string winning_player_id = 8 [json_name = "winning_player_id"];
+  // @inject_tag: `bun:",type:date,notnull,nullzero,default:current_date"`
+  string game_played_at = 9 [json_name = "game_played_at"];
+  // @inject_tag: `bun:",type:timestamptz,notnull,nullzero,default:now()"`
+  string created_at = 10 [json_name = "created_at"];
+  // @inject_tag: `bun:",type:timestamptz,notnull,nullzero,default:now()"`
+  string updated_at = 11 [json_name = "updated_at"];
+}
+
+// CREATE
+message CreateSquashSinglesGameRequest {
+  string name = 1;
+  string player1_id = 2 [json_name = "player1_id"];
+  string player2_id = 3 [json_name = "player2_id"];
+  int32 player1_score = 4 [json_name = "player1_score"];
+  int32 player2_score = 5 [json_name = "player2_score"];
+  bool is_game_complete = 6 [json_name = "is_game_complete"];
+  string winning_player_id = 7 [json_name = "winning_player_id"];
+  string game_played_at = 8 [json_name = "game_played_at"];
+}
+message CreateSquashSinglesGameResponse {
+  string id = 1;
+}
+
+// GET
+message GetSquashSinglesGameRequest {
+  string id = 1;
+}
+message GetSquashSinglesGameResponse {
+  SquashSinglesGame game = 1;
+}
+
+// GET LIST
+message ListSquashSinglesGameRequest {
+  string page = 1;
+  string start_date = 2 [json_name = "start_date"];
+  string end_date = 3 [json_name = "end_date"];
+  string player_id = 4 [json_name = "player_id"];
+}
+message ListSquashSinglesGameResponse {
+  repeated SquashSinglesGame games = 1;
+}
+
+// UPDATE
+message UpdateSquashSinglesGameRequest {
+  string id = 1;
+  string name = 2;
+  string player1_id = 3 [json_name = "player1_id"];
+  string player2_id = 4 [json_name = "player2_id"];
+  int32 player1_score = 5 [json_name = "player1_score"];
+  int32 player2_score = 6 [json_name = "player2_score"];
+  bool is_game_complete = 7 [json_name = "is_game_complete"];
+  string winning_player_id = 8 [json_name = "winning_player_id"];
+  string game_played_at = 9 [json_name = "game_played_at"];
+}
+message UpdateSquashSinglesGameResponse {
+  SquashSinglesGame game = 1;
+}
+
+// DELETE
+
+
+// service
+service SquashSinglesGameService {
+  rpc CreateSquashSinglesGame(CreateSquashSinglesGameRequest) returns (CreateSquashSinglesGameResponse) {
+    option(google.api.http) = {
+      post: "/v1/squash/singles_game";
+      body: "*";
+    };
+  }
+  rpc GetSquashSinglesGame(GetSquashSinglesGameRequest) returns (GetSquashSinglesGameResponse) {
+    option(google.api.http) = {
+      get: "/v1/squash/singles_game/{id}";
+    };
+  }
+  rpc ListSquashSinglesGame(ListSquashSinglesGameRequest) returns (ListSquashSinglesGameResponse) {
+    option(google.api.http) = {
+      get: "/v1/squash/singles_game";
+    };
+  }
+  rpc UpdateSquashSinglesGame(UpdateSquashSinglesGameRequest) returns (UpdateSquashSinglesGameResponse) {
+    option(google.api.http) = {
+      patch: "/v1/squash/players/{id}";
+      body: "*";
+    };
+  }
+}

@@ -7,8 +7,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/uuid"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/auth"
-	"github.com/thesammy2010/api.thesammy2010.com/internal/cache"
-	"github.com/thesammy2010/api.thesammy2010.com/internal/config"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
 	"github.com/uptrace/bun"
@@ -20,18 +18,6 @@ import (
 	"strings"
 	"time"
 )
-
-// PlayerServer SquashPlayer server type
-type PlayerServer struct {
-	pb.UnimplementedSquashPlayerServiceServer
-	DB     *bun.DB
-	Cache  *cache.Cache
-	Config *config.Config
-}
-
-type RequestById interface {
-	GetId() string
-}
 
 // SquashPlayer only used for the auto update of the original model
 type SquashPlayer pb.SquashPlayer // nolint:staticcheck
@@ -416,4 +402,8 @@ func (s *PlayerServer) SignUp(ctx context.Context, in *empty.Empty) (*pb.CreateS
 
 	// return user
 	return &pb.CreateSquashPlayerResponse{Id: response.Id}, nil
+}
+
+func CreateSquashPlayer(ctx context.Context, in *pb.CreateSquashPlayerRequest) (*pb.CreateSquashPlayerRequest, error) {
+	return nil, status.Error(codes.Unimplemented, "This route is unimplemented, use `/v1/squash/signup`")
 }
