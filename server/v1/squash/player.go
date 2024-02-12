@@ -403,7 +403,3 @@ func (s *PlayerServer) SignUp(ctx context.Context, in *empty.Empty) (*pb.CreateS
 	// return user
 	return &pb.CreateSquashPlayerResponse{Id: response.Id}, nil
 }
-
-func CreateSquashPlayer(ctx context.Context, in *pb.CreateSquashPlayerRequest) (*pb.CreateSquashPlayerRequest, error) {
-	return nil, status.Error(codes.Unimplemented, "This route is unimplemented, use `/v1/squash/signup`")
-}
