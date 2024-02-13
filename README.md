@@ -89,6 +89,10 @@ PATCH /v1/squash/players/76d34b99-1e10-4693-b2c2-20b129ad4da1 -d '{"name": "TheS
 TODO
 - [ ] Authentication 
   - [X] via Google
+  - [ ] RBAC https://mikebolshakov.medium.com/custom-role-based-authorization-in-golang-ba6d5585a521
+    - [ ] Authorised users can view
+    - [ ] Whitelisted users can create and edit games
+    - [ ] Admin can delete games
 - [ ] Routes & Methods
     - [X] `/v1/squash/players/signup` 
     - [X] `/v1/squash/players`

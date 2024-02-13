@@ -16,17 +16,23 @@ type ReferencableSquashPlayer interface {
 }
 
 type Cache struct {
-	players *cache.Cache
+	players      *cache.Cache
+	singlesGames *cache.Cache
 }
 
 func NewCache(defaultExpiration, cachePurgeTime int) *Cache {
-	c := cache.New(
+	players := cache.New(
+		time.Duration(defaultExpiration)*time.Minute,
+		time.Duration(cachePurgeTime)*time.Minute,
+	)
+	singlesGames := cache.New(
 		time.Duration(defaultExpiration)*time.Minute,
 		time.Duration(cachePurgeTime)*time.Minute,
 	)
 	logger.Debug("Initialise new cache")
 	return &Cache{
-		players: c,
+		players:      players,
+		singlesGames: singlesGames,
 	}
 }
 
