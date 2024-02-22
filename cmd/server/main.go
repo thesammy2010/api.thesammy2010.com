@@ -34,6 +34,10 @@ func initModels(ctx context.Context, db bun.DB) {
 
 func main() {
 
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Fatal("Failed to initialise config file", zap.Error(err))
@@ -80,7 +84,7 @@ func main() {
 
 	// Create a client connection to the gRPC squashPlayerServer
 	conn, err := grpc.DialContext(
-		context.Background(),
+		ctx,
 		"0.0.0.0:"+cfg.GrpcPort,
 		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

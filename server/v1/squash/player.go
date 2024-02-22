@@ -6,12 +6,10 @@ import (
 	"errors"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/uuid"
-	"github.com/thesammy2010/api.thesammy2010.com/internal/auth"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
 	"github.com/uptrace/bun"
 	"go.uber.org/zap"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -328,7 +326,7 @@ func (s *PlayerServer) DeleteSquashPlayer(ctx context.Context, in *pb.DeleteSqua
 	return &pb.DeleteSquashPlayerResponse{}, nil
 }
 
-func (s *PlayerServer) SignUp(ctx context.Context, in *empty.Empty) (*pb.CreateSquashPlayerResponse, error) {
+func (s *PlayerServer) Login(ctx context.Context, in *empty.Empty) (*pb.CreateSquashPlayerResponse, error) {
 
 	trace := uuid.New().String()
 	var response pb.SquashPlayer
@@ -339,42 +337,20 @@ func (s *PlayerServer) SignUp(ctx context.Context, in *empty.Empty) (*pb.CreateS
 		logger.Warn("Failed to read request context", zap.String("trace", trace))
 		return nil, status.Error(codes.Internal, "Internal Error")
 	}
-	token, rErr := auth.GetTokenFromRequest(md)
-	if rErr != nil {
-		logger.Debug("Invalid value for Authorization header", zap.String("error", rErr.Error))
-		return nil, status.Error(codes.InvalidArgument, rErr.AsJson())
-	}
-
-	// validate token
-	payload, rErr := auth.ValidateToken(ctx, *s.Config, *token)
-	if rErr != nil {
-		logger.Debug("Error validating token", zap.String("error", rErr.Error))
-		return nil, status.Error(codes.InvalidArgument, rErr.AsJson())
-	}
 
 	// get attributes from token
 	rawPlayer := &SquashPlayer{
-		GoogleAccountId: payload["sub"].(string),
-		Name:            payload["name"].(string),
-		ProfilePicture:  payload["picture"].(string),
+		GoogleAccountId: strings.Join(md.Get("User-Google-Account-Id"), ""),
+		Name:            strings.Join(md.Get("User-Name"), ""),
+		ProfilePicture:  strings.Join(md.Get("User-Picture-Url"), ""),
 	}
 
 	// check if player already exists
 	check, err := s.GetSquashPlayer(ctx, &pb.GetSquashPlayerRequest{Id: rawPlayer.GoogleAccountId, Method: pb.GetSquashPlayerRequestType_METHOD_GOOGLE_ACCOUNT_ID})
 	if err == nil {
-		returnErr := status.New(codes.AlreadyExists, "Player already exists")
-		details := &errdetails.ErrorInfo{
-			Reason: "There can only be one 1 squash player for every Google account",
-			Metadata: map[string]string{
-				"squash_player_id": check.SquashPlayer.Id,
-			},
-		}
-		returnErr, err := returnErr.WithDetails(details)
-		if err != nil {
-			logger.Error("Unknown error creating error with details", zap.Error(err))
-			return nil, status.Error(codes.Internal, "Unknown error occurred")
-		}
-		return nil, returnErr.Err()
+		return &pb.CreateSquashPlayerResponse{
+			Id: check.SquashPlayer.Id,
+		}, nil
 	}
 	if !strings.HasPrefix(err.Error(), "rpc error: code = NotFound") {
 		logger.Error("Unknown error creating resource",
