@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"github.com/felixge/httpsnoop"
+	"github.com/rs/cors"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/auth"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/config"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
@@ -56,8 +57,28 @@ func withJwtAuth(cfg config.Config, next http.Handler) http.HandlerFunc {
 	}
 }
 
+func withCors(cfg config.Config, handler http.Handler) http.Handler {
+	AllowedOrigins := []string{"(.+\\.google.com)", ".*thesammy2010\\.com"}
+
+	if cfg.Environment == "local" {
+		AllowedOrigins = append(AllowedOrigins, "http://localhost:3000")
+	}
+
+	c := cors.New(cors.Options{
+		AllowedOrigins:   AllowedOrigins,
+		AllowedMethods:   []string{"GET", "PUT", "PATCH"},
+		AllowedHeaders:   []string{"Authorization"},
+		AllowCredentials: true,
+		Debug:            true,
+	})
+	return c.Handler(handler)
+}
+
 // HttpHandler exported function to wrap http handlers into one
 func HttpHandler(handler http.Handler, config config.Config) http.Handler {
+	if config.HandlerEnableCors {
+		handler = withCors(config, handler)
+	}
 	if config.HandlerEnablePrettier {
 		handler = withPrettier(handler)
 	}
