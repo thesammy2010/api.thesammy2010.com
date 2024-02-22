@@ -12,13 +12,13 @@ import (
 )
 
 // withLogger This wrapper snoops requests and prints out logs
-func withLogging(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		m := httpsnoop.CaptureMetrics(handler, writer, request)
+func withLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		m := httpsnoop.CaptureMetrics(next, w, r)
 		logger.Info("Request",
-			zap.String("method", request.Method),
+			zap.String("method", r.Method),
 			zap.Int("status", m.Code),
-			zap.String("path", request.URL.Path),
+			zap.String("path", r.URL.Path),
 		)
 	})
 }
@@ -44,7 +44,7 @@ func withJwtAuth(cfg config.Config, next http.Handler) http.HandlerFunc {
 			return
 		}
 
-		_, err = auth.ValidateToken(ctx, cfg, *token)
+		payload, err := auth.ValidateToken(ctx, cfg, *token)
 		if err != nil {
 			if err.InternalError {
 				http.Error(w, err.AsJson(), http.StatusInternalServerError)
@@ -53,6 +53,11 @@ func withJwtAuth(cfg config.Config, next http.Handler) http.HandlerFunc {
 			}
 			return
 		}
+
+		//if r.RequestURI = "/"
+		r.Header.Set("Grpc-Metadata-User-Google-Account-Id", payload["sub"].(string))
+		r.Header.Set("Grpc-Metadata-User-Name", payload["name"].(string))
+		r.Header.Set("Grpc-Metadata-User-Picture-Url", payload["picture"].(string))
 		next.ServeHTTP(w, r)
 	}
 }
@@ -66,24 +71,23 @@ func withCors(cfg config.Config, handler http.Handler) http.Handler {
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   AllowedOrigins,
-		AllowedMethods:   []string{"GET", "PUT", "PATCH"},
-		AllowedHeaders:   []string{"Authorization"},
+		AllowedMethods:   []string{http.MethodGet, http.MethodPut, http.MethodPatch},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept-Encoding", "Accept"},
 		AllowCredentials: true,
-		Debug:            true,
 	})
 	return c.Handler(handler)
 }
 
 // HttpHandler exported function to wrap http handlers into one
 func HttpHandler(handler http.Handler, config config.Config) http.Handler {
-	if config.HandlerEnableCors {
-		handler = withCors(config, handler)
-	}
 	if config.HandlerEnablePrettier {
 		handler = withPrettier(handler)
 	}
 	if config.HandlerEnableAuth {
 		handler = withJwtAuth(config, handler)
+	}
+	if config.HandlerEnableCors {
+		handler = withCors(config, handler)
 	}
 	if config.HandlerEnableLogging {
 		handler = withLogging(handler)

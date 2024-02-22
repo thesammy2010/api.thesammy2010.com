@@ -16,10 +16,20 @@ var (
 			DiscardUnknown: true,
 		},
 	})
+	customHeaderResolver = runtime.WithIncomingHeaderMatcher(headerMatcher)
 )
 
+func headerMatcher(header string) (string, bool) {
+	switch header {
+	case "X-User-Id":
+		return header, true
+	default:
+		return runtime.DefaultHeaderMatcher(header)
+	}
+}
+
 func GetMuxOpts(config config.Config) []runtime.ServeMuxOption {
-	var opts []runtime.ServeMuxOption
+	opts := []runtime.ServeMuxOption{customHeaderResolver}
 	if config.HandlerEnablePrettier {
 		opts = append(opts, prettier)
 	}

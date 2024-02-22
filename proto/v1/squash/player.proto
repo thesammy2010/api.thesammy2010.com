@@ -107,9 +107,9 @@ service SquashPlayerService {
       delete: "/v1/squash/players/{id}";
     };
   };
-  rpc SignUp(google.protobuf.Empty) returns(CreateSquashPlayerResponse) {
+  rpc Login(google.protobuf.Empty) returns(CreateSquashPlayerResponse) {
     option(google.api.http) = {
-      put: "/v1/squash/players/signup"
+      put: "/v1/squash/login"
     };
   };
 }
