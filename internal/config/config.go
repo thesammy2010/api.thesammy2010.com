@@ -18,6 +18,7 @@ type Config struct {
 	HandlerEnableLogging  bool `mapstructure:"HANDLERS_ENABLE_LOGGING"`
 	HandlerEnablePrettier bool `mapstructure:"HANDLERS_ENABLE_PRETTIER"`
 	HandlerEnableAuth     bool `mapstructure:"HANDLERS_ENABLE_AUTH"`
+	HandlerEnableCors     bool `mapstructure:"HANDLERS_ENABLE_CORS"`
 	// Cache options
 	CacheDefaultExpiration int `mapstructure:"CACHE_DEFAULT_EXPIRATION"`
 	CachePurgeTime         int `mapstructure:"CACHE_PURGE_TIME"`
@@ -31,6 +32,7 @@ func LoadConfig() (config Config, err error) {
 	viper.SetDefault("HANDLERS_ENABLE_LOGGING", true)
 	viper.SetDefault("HANDLERS_ENABLE_PRETTIER", true)
 	viper.SetDefault("HANDLERS_ENABLE_AUTH", true)
+	viper.SetDefault("HANDLERS_ENABLE_CORS", true)
 	viper.SetDefault("CACHE_DEFAULT_EXPIRATION", 5)
 	viper.SetDefault("CACHE_PURGE_TIME", 10)
 	viper.AddConfigPath(".")
