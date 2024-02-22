@@ -63,7 +63,7 @@ func withJwtAuth(cfg config.Config, next http.Handler) http.HandlerFunc {
 }
 
 func withCors(cfg config.Config, handler http.Handler) http.Handler {
-	AllowedOrigins := []string{"(.+\\.google.com)", ".*thesammy2010\\.com"}
+	AllowedOrigins := []string{"https://squash.thesammy2010.com"}
 
 	if cfg.Environment == "local" {
 		AllowedOrigins = append(AllowedOrigins, "http://localhost:3000")
