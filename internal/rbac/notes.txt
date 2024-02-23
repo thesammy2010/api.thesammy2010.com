@@ -1,0 +1,19 @@
+We can create groups (like data_group)
+
+Groups
+- Admin (can change everything)
+- Viewer (can view everything)
+
+When a new squash player signs up the following should happen
+- That user gets write person to themself
+- Viewers get read permission to them
+- Admins get write permissions to them
+- The new player is informed of their role
+
+When a player wants to look up another player
+- a request is made to see if they're eligible
+
+data should be formatted in
+- subject = playerId
+- action [viewer, editor, admin]
+- object [the playerId in question]

@@ -1,0 +1,17 @@
+# Requester, Resource{Owner}, permission
+# Alice is a registered player
+alice, { Owner: 'alice'}, write # true
+alice, { Owner: 'alice'}, read  # true
+alice, { Owner: 'bob'}, write # false
+alice, { Owner: 'bob'}, read  # true
+
+# Bob is just a viewer
+bob, {Owner: 'bob'}, read # true
+bob, {Owner: 'bob'}, write # true
+bob, {Owner: 'alice'}, read # false
+bob, {Owner: 'alice'}, write # false
+
+# Leo is an admin
+leo, {Owner: 'leo'}, write # true
+leo, {Owner: 'alice'}, write # true
+leo, {Owner: 'bob'}, write # true
