@@ -123,11 +123,28 @@ func validateGetSquashPlayerRequest(in *pb.GetSquashPlayerRequest, trace string)
 func (s *PlayerServer) GetSquashPlayer(ctx context.Context, in *pb.GetSquashPlayerRequest) (*pb.GetSquashPlayerResponse, error) {
 	trace := uuid.New().String()
 
-	// check user is authorised for GET /squash_players
-
 	// validate request
 	if err := validateGetSquashPlayerRequest(in, trace); err != nil {
 		return nil, err
+	}
+
+	// get header from ctx
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		logger.Warn("Failed to read request context", zap.String("trace", trace))
+		return nil, status.Error(codes.Internal, "Internal Error")
+	}
+	if len(md.Get("User-Google-Account-Id")) != 1 {
+		logger.Error("Error obtaining google account id from gRPC context", zap.String("trace", trace))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	}
+
+	// check user is authorised for GET /squash_players
+	req := &rbac.Request{
+		Subject: md.Get("User-Google-Account-Id")[0], ResourceId: in.Id, ResourceType: rbac.ResourcePlayer, Action: rbac.ActionViewer,
+	}
+	if !s.Rbac.IsAuthorised(req, trace) {
+		return nil, status.Error(codes.PermissionDenied, "User is not authorised to access this resource")
 	}
 
 	// check cache
@@ -348,21 +365,21 @@ func (s *PlayerServer) Login(ctx context.Context, in *empty.Empty) (*pb.CreateSq
 		ProfilePicture:  strings.Join(md.Get("User-Picture-Url"), ""),
 	}
 
-	// check if player already exists
-	check, err := s.GetSquashPlayer(ctx, &pb.GetSquashPlayerRequest{Id: rawPlayer.GoogleAccountId, Method: pb.GetSquashPlayerRequestType_METHOD_GOOGLE_ACCOUNT_ID})
-	if err == nil {
-		return &pb.CreateSquashPlayerResponse{
-			Id: check.SquashPlayer.Id,
-		}, nil
+	err := s.DB.NewSelect().Model(&SquashPlayer{}).Where("google_account_id = ?", rawPlayer.GoogleAccountId).Scan(ctx, &response)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logger.Error("Unknown error fetching resource from db",
+				zap.String("Resource", "Login"),
+				zap.String("trace", trace),
+				zap.Error(err),
+			)
+			return nil, status.Error(codes.Internal, "Internal Server Error")
+		}
 	}
-	if !strings.HasPrefix(err.Error(), "rpc error: code = NotFound") {
-		logger.Error("Unknown error creating resource",
-			zap.String("Resource", "Player"),
-			zap.String("ID", rawPlayer.GoogleAccountId),
-			zap.String("trace", trace),
-			zap.Error(err),
-		)
-		return nil, status.Error(codes.Internal, "Failed to register new player")
+	if response.Id != "" {
+		s.Rbac.HandleNewUser(response.GoogleAccountId, response.Id, trace)
+		s.Rbac.HandleNewUser(response.Id, response.Id, trace)
+		return &pb.CreateSquashPlayerResponse{Id: response.Id}, nil
 	}
 
 	// create user
@@ -380,8 +397,9 @@ func (s *PlayerServer) Login(ctx context.Context, in *empty.Empty) (*pb.CreateSq
 	s.Cache.UpdateSquashPlayer(&response, trace)
 
 	// update rbac
-	user, _ := uuid.Parse(check.SquashPlayer.Id)
-	s.Rbac.SetAccessGranted(&rbac.ResourceRequest{Subject: user, Resource: rbac.Player, Action: rbac.ActionUpdate})
+	s.Rbac.HandleNewUser(response.GoogleAccountId, response.Id, trace)
+	s.Rbac.HandleNewUser(response.Id, response.Id, trace)
+
 	// return user
 	return &pb.CreateSquashPlayerResponse{Id: response.Id}, nil
 }

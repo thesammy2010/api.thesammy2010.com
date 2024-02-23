@@ -103,7 +103,7 @@ func main() {
 	}
 
 	gwmux := runtime.NewServeMux(marshallers.GetMuxOpts(cfg)...)
-	// Register Squash Player proxy
+	// Register Squash ResourcePlayer proxy
 	err = pb.RegisterSquashPlayerServiceHandler(context.Background(), gwmux, conn)
 	if err != nil {
 		logger.Fatal("Failed to register gateway:", zap.Error(err))
