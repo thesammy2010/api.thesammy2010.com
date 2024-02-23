@@ -7,6 +7,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/uuid"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/rbac"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
 	"github.com/uptrace/bun"
 	"go.uber.org/zap"
@@ -121,6 +122,8 @@ func validateGetSquashPlayerRequest(in *pb.GetSquashPlayerRequest, trace string)
 // GetSquashPlayer Function to fetch squash player from db
 func (s *PlayerServer) GetSquashPlayer(ctx context.Context, in *pb.GetSquashPlayerRequest) (*pb.GetSquashPlayerResponse, error) {
 	trace := uuid.New().String()
+
+	// check user is authorised for GET /squash_players
 
 	// validate request
 	if err := validateGetSquashPlayerRequest(in, trace); err != nil {
@@ -376,6 +379,9 @@ func (s *PlayerServer) Login(ctx context.Context, in *empty.Empty) (*pb.CreateSq
 	// update cache
 	s.Cache.UpdateSquashPlayer(&response, trace)
 
+	// update rbac
+	user, _ := uuid.Parse(check.SquashPlayer.Id)
+	s.Rbac.SetAccessGranted(&rbac.ResourceRequest{Subject: user, Resource: rbac.Player, Action: rbac.ActionUpdate})
 	// return user
 	return &pb.CreateSquashPlayerResponse{Id: response.Id}, nil
 }

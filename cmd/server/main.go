@@ -9,6 +9,7 @@ import (
 	"github.com/thesammy2010/api.thesammy2010.com/internal/handlers"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/logger"
 	"github.com/thesammy2010/api.thesammy2010.com/internal/marshallers"
+	"github.com/thesammy2010/api.thesammy2010.com/internal/rbac"
 	pb "github.com/thesammy2010/api.thesammy2010.com/proto/v1/squash"
 	squashplayer "github.com/thesammy2010/api.thesammy2010.com/server/v1/squash"
 	"github.com/uptrace/bun"
@@ -38,6 +39,7 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// load config
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Fatal("Failed to initialise config file", zap.Error(err))
@@ -61,7 +63,13 @@ func main() {
 	bundebug.NewQueryHook(bundebug.WithEnabled(false))
 
 	// init models
-	initModels(context.Background(), *db)
+	initModels(ctx, *db)
+
+	// init rbac
+	r, err := rbac.New(cfg)
+	if err != nil {
+		logger.Fatal("Failed to initialise RBAC", zap.Error(err))
+	}
 
 	// Reserve port
 	lis, err := net.Listen("tcp", ":"+cfg.GrpcPort)
@@ -76,6 +84,7 @@ func main() {
 		DB:     db,
 		Cache:  cache.NewCache(cfg.CacheDefaultExpiration, cfg.CachePurgeTime),
 		Config: &cfg,
+		Rbac:   r,
 	})
 	logger.Info("Serving gRPC", zap.String("Port", cfg.GrpcPort))
 	go func() {
