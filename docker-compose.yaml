@@ -1,0 +1,26 @@
+# https://hub.docker.com/layers/flyio/postgres-flex/15.3/images/sha256-44b698752cf113110f2fa72443d7fe452b48228aafbb0d93045ef1e3282360a6
+version: '3.9'
+
+services:
+    postgres:
+        container_name: postgres
+        image: postgres:17.5-alpine3.21
+        ports:
+            - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+        volumes:
+            - ~/apps/postgres:/var/lib/postgresql/data
+        env_file: .env
+
+    app:
+        container_name: app
+        build:
+            context: .
+            dockerfile: Dockerfile
+        ports:
+            - "${PORT}:${PORT}"
+        volumes:
+            - .:/app
+        env_file: .env
+        depends_on:
+            - postgres
+        command: uvicorn src.main:app --host

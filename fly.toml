@@ -1,0 +1,27 @@
+app = "api-thesammy2010-com"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+  ignorefile = ".dockerignore"
+  build-target = "production-stage"
+
+
+[env]
+  PORT = "8000"
+  ENVIRONMENT = "prod"
+  GOOGLE_CLIENT_ID = "904361218828-9iva1dgj3dce9eku248e3l71spa5ho3d.apps.googleusercontent.com"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024
+

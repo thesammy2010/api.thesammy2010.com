@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/pycqa/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+        name: isort (python)
+        stages: [ pre-commit ]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.12
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+        stages: [ pre-commit ]
+      - id: ruff-format
+        stages: [ pre-commit ]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        stages: [pre-push]
+        entry: ./.venv/bin/pytest tests
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+

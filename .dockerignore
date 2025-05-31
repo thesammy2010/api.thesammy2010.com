@@ -1,0 +1,8 @@
+.github
+.venv
+.env
+.gitignore
+.pre-commit-config.yaml
+.python-version
+fly.toml
+README.md
