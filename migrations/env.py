@@ -4,7 +4,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from src.models.user import Base
+from src.models import metadata
+from src.models.go_heavier.location import Location  # noqa: F401
+from src.models.user import User  # noqa: F401
 
 config = context.config
 
@@ -23,7 +25,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = Base.metadata
+target_metadata = metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
