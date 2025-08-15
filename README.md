@@ -36,3 +36,15 @@ curl \
   -X POST localhost:8000/users \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+### Connecting to the database
+```bash
+fly postgres connect -a thesammy2010
+```
+
+or
+```bash
+fly ssh console -a api-thesammy2010-com
+echo $DATABASE_URL
+fly proxy 15432:5432 -a thesammy2010
+```
