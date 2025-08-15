@@ -22,11 +22,17 @@ fastapi dev src/main.py
 ```
 
 ```http request
-POST /squash/users
+POST /users
 Authorization: Bearer <Google OAuth2 token>
 ```
 ```json
 {
   "user_id": "<uuid>"
 }
+```
+or
+```bash
+curl \
+  -X POST localhost:8000/users \
+  -H "Authorization: Bearer $TOKEN"
 ```

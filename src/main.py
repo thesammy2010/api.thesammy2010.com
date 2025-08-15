@@ -1,12 +1,31 @@
+import logging
+from contextlib import asynccontextmanager
+
 import dotenv
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.routers import squash
+from src.routers import root
 
 dotenv.load_dotenv()
 
-app = FastAPI()
+
+def run_migrations():
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+
+
+@asynccontextmanager
+async def lifespan(app_: FastAPI):
+    logging.info("running migrations...")
+    run_migrations()
+    yield
+    logging.info("Shutting down...")
+
+
+app = FastAPI(lifespan=lifespan)
 origins = [
     "http://localhost",
     "http://localhost:8000",
@@ -19,4 +38,4 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(squash.router)
+app.include_router(root.router)

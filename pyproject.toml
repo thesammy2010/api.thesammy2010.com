@@ -20,6 +20,7 @@ dependencies = [
     "google-auth (>=2.40.2,<3.0.0)",
     "uvicorn (>=0.34.2,<0.35.0)",
     "requests (>=2.32.3,<3.0.0)",
+    "alembic (>=1.16.4,<2.0.0)",
 ]
 
 [tool.poetry]
