@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 
 from src.common import decode_token
 from src.db import session
-from src.models.squash.user import User
+from src.models.user import User
 
 
 def get_current_user(token: str) -> User:

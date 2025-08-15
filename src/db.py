@@ -4,8 +4,6 @@ import sqlalchemy
 from sqlalchemy.orm import Session
 
 from src.config import Config
-from src.models import Base
-from src.models.squash.user import User  # noqa: F401
 
 
 def init_db(cfg: Config) -> Session:
@@ -17,9 +15,6 @@ def init_db(cfg: Config) -> Session:
 
     engine.connect()
     logging.debug("Database initialized")
-
-    Base.metadata.create_all(engine)
-    logging.debug("Database tables created")
 
     return sqlalchemy.orm.sessionmaker(bind=engine)()
 

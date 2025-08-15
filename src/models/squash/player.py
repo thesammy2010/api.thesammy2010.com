@@ -6,7 +6,7 @@ from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models import Base
-from src.models.squash.user import User
+from src.models.user import User
 
 
 class Player(Base):

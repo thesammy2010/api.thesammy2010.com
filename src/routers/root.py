@@ -1,11 +1,12 @@
+import logging
 from typing import Annotated, Dict
 
 from fastapi import APIRouter, Header, HTTPException
 
 from src.common import CommonHeaders, decode_token
-from src.resolvers.squash.users import create_user_in_db, get_current_user
+from src.resolvers.users import create_user_in_db, get_current_user
 
-router = APIRouter(prefix="/squash", tags=["squash"])
+router = APIRouter()
 
 
 @router.get("/users")
@@ -25,7 +26,8 @@ async def get_user(headers: Annotated[CommonHeaders, Header()]) -> Dict[str, str
 async def create_user(headers: Annotated[CommonHeaders, Header()]) -> Dict[str, str]:
     try:
         claims = decode_token(headers.authorization.replace("Bearer ", ""))
-    except Exception:
+    except Exception as e:
+        logging.error(f"Failed to decode token: {e}")
         raise HTTPException(
             status_code=401, detail="User must be authenticated with Google"
         )
