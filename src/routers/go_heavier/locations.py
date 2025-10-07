@@ -8,7 +8,7 @@ from src.models.go_heavier.location import Location as DBLocation
 from src.resolvers.go_heavier import locations
 from src.schemas.go_heavier.locations import LocationRequest, LocationResponse
 
-router = APIRouter(prefix="/go-heavier", tags=["go-heavier"])
+router = APIRouter(prefix="/go-heavier", tags=["locations"])
 
 
 @router.get("/locations", response_model=List[LocationResponse])
