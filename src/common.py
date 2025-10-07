@@ -267,3 +267,32 @@ class IsoCountryCode(str, enum.Enum):
     ZAF = "ZAF"  # South Africa
     ZMB = "ZMB"  # Zambia
     ZWE = "ZWE"  # Zimbabwe
+
+
+class MuscleGroup(str, enum.Enum):
+    CHEST = "chest"
+    BACK = "back"
+    LEGS = "legs"
+    ARMS = "arms"
+    SHOULDERS = "shoulders"
+    CORE = "core"
+    FULL_BODY = "full body"
+    CARDIO = "cardio"
+    OTHER = "other"
+
+
+class SpecificMuscle(str, enum.Enum):
+    BICEPS = "biceps"
+    TRICEPS = "triceps"
+    QUADRICEPS = "quadriceps"
+    HAMSTRINGS = "hamstrings"
+    GLUTES = "glutes"
+    CALVES = "calves"
+    DELTOIDS = "deltoids"
+    PECTORALS = "pectorals"
+    LATS = "lats"
+    TRAPS = "traps"
+    ABS = "abs"
+    OBLIQUES = "obliques"
+    FOREARMS = "forearms"
+    OTHER = "other"
