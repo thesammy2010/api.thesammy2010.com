@@ -1,0 +1,33 @@
+id,name,description,muscle_group,specific_muscle,bipedal,image_url,free_weights,created_at,updated_at
+18ec4f65-e0c7-4582-add3-70f279a6a57e,Overhead Press,Shoulder Press Free Weights,shoulders,deltoids,false,https://www.shutterstock.com/image-vector/man-doing-overhead-dumbbell-shoulder-600w-2031950852.jpg,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+52990968-15a2-41f3-a061-93e58b084c3f,Shrugs,Shoulder Shrugs,shoulders,traps,false,,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+f9f93778-1a92-47d1-8168-500e30adc6f3,Lateral Raise,Shoulder Flys,shoulders,deltoids,false,,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+fe66bcaf-0199-40ef-9788-515d54ebb0a0,Lat Pull Down,Lat Pull Down,back,lats,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+38d78b53-35e2-47e2-ba1d-278f9c5aed50,Deadlift,Deadlift,back,erector spinae,true,,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+93e30465-00fa-47e5-86d8-884ccdf62892,Assisted Pull Ups,Pull Ups,back,traps,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+65094692-b378-45d1-8068-351d8064184e,Standard Pull Ups,Standard Pull Ups,back,traps,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+8055be23-a52e-4308-868c-ea578431ed22,Rear Delt Fly,Rear Delts,back,deltoids,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+486b1dff-8525-4e57-8c68-58bf1a2a3790,Seated Row,Seated Row,back,rhomboids,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+bf40c92c-d15b-441a-8eab-0cd843f551af,Cross Body Bicep Curls,Side Curls,arms,biceps,false,,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+654844ec-edae-4a26-a4cd-0a20526b9dd8,Standard Bicep Curls,Front Curls,arms,biceps,false,,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+aa5dc43a-37d5-4c1f-a3d2-90cd9af590ac,Hammer Curls,Hammer Curls,arms,biceps,false,,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+08a3ed08-6ddb-4e11-a661-fa3fbb15f45e,Chin Ups,Bicep Pull Ups,arms,biceps,false,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+fe57bfb4-fa7d-4c6e-b61f-144656023cac,Dumbbell Chest Press,Chest Press Free Weights,chest,pectorals,false,,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+5d41249e-97bd-4e7b-a6a4-d7ea12209a54,Pec Fly,Chest Fly,chest,pectorals,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+b535bacd-eb25-4059-a006-613736c57182,Cable Fly,Chest Press Down,chest,pectorals,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+55c2fa3a-789b-4431-a207-018636eec66c,Bench Press,Bench Press,chest,pectorals,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+486668f2-2886-43ff-8cc3-241d530acc82,Tricep Push Down,Tricep Pull Down,arms,triceps,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+2c39d054-bbf4-4e61-a480-ab04ed957bb4,Cable Tricep Extension,Tricep Extension,arms,triceps,false,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+e0db7095-36ad-41eb-b976-556556069983,Skull Crusher,"Seated Dropped Extension, Same as overhead pull",arms,triceps,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+214b75cd-e331-414e-9189-50bbe4ca5e15,Loaded Abdominal Crunch,Ab crunch machine,core,abs,false,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+2697d0a8-11e9-401d-90a1-a4affb58bfbb,Hanging Knee Raise,knee raises,core,abs,false,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+f51006f8-95db-4e91-885f-856c996723e5,Sit Ups,situps,core,abs,false,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+b253b7b4-aac5-427a-8a1f-2bbb580d60ba,Side Weight Dip,kettle dips,core,obliques,false,,true,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+3969371c-f374-4687-92af-685fe66bf2e8,Leg Press,leg press,legs,quadriceps,false,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+90f785e9-89bc-4afa-acab-44ed665d1031,Hip Adductors,inside,legs,glutes,false,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+3b927320-43a6-4abd-ab8b-bdd02e8e77a3,Hip Abductors,outside,legs,glutes,false,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+10ce12fc-d963-4a27-9c65-b7f1d7045816,Barbell Hack Squat,hack squat,legs,glutes,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+e9962a5f-534f-4fa3-b4c1-e5d7b4f26510,Smith Machine Squat,smith machine squat,legs,quadriceps,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+aee905fd-30e2-4dfb-b8bc-17bdfef86906,Lever Lying Leg Curl,Hamstring Curl,legs,hamstrings,true,https://liftmanual.com/wp-content/uploads/2023/04/lever-lying-leg-curl.jpg,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+a792fc12-501c-4d38-84d8-49d412dd89ec,Calf Extension,Calf lift,legs,calves,true,,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z
+b3910619-3753-4b81-95e8-52e7d99d3b6f,Calf Raise,calf raise,legs,calves,true,https://www.gymequip.eu/wp-content/uploads/2023/07/Standing-Calf-Raise-Machine.jpg,false,2025-10-07T20:56:05.123Z,2025-10-07T20:56:05.123Z

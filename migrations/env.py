@@ -5,6 +5,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from src.models import metadata
+from src.models.go_heavier.exercise import Exercise  # noqa: F401
 from src.models.go_heavier.location import Location  # noqa: F401
 from src.models.user import User  # noqa: F401
 
