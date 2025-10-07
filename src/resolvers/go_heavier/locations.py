@@ -42,6 +42,7 @@ def create_location(location: LocationRequest) -> DBLocation:
         address_line1=location.address_line1,
         address_line2=location.address_line2,
         address_city=location.address_city,
+        address_postal_code=location.address_postal_code,
         address_country_iso3=location.address_country_iso3,
         created_at=datetime.datetime.now(tz=datetime.timezone.utc),
         updated_at=datetime.datetime.now(tz=datetime.timezone.utc),
