@@ -1,0 +1,4 @@
+id,name,description,address_line1,address_line2,address_city,address_postal_code,address_country_iso3,created_at,updated_at
+"62655708-0330-475f-aa28-c4749ded4b9d","The Gym Wealdstone","The Gym Group","35-43 High Street","","Harrow","HA3 5DF","GBR","2025-10-07T18:11:05.123Z","2025-10-07T18:11:05.123Z"
+"fe391827-2a4a-485c-b0bb-fa27403b130c","The Gym South Ruislip","The Gym Group","Units 2-3, The Old Diary","Victoria Road","Ruislip","HA4 0FY","GBR","2025-10-07T18:11:05.123Z","2025-10-07T18:11:05.123Z"
+"e6bc723f-f6ae-4570-8e93-942fa9af3d1f","The Gym Greenford","The Gym Group","Unit 1","Bakery Walk","Greenford","UB6 0GQ","GBR","2025-10-07T18:11:05.123Z","2025-10-07T18:11:05.123Z"

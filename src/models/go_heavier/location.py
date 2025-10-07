@@ -23,6 +23,7 @@ class Location(Base):
     address_country_iso3: Mapped[Optional[str]] = mapped_column(
         String(3), nullable=False
     )
+    address_postal_code: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(), nullable=False, default=datetime.datetime.now

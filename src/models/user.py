@@ -10,7 +10,7 @@ from src.models import Base
 
 
 class User(Base):
-    __tablename__ = "user"
+    __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, server_default=func.gen_random_uuid(), nullable=False

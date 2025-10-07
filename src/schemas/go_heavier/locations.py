@@ -38,6 +38,13 @@ class _BaseLocation(BaseModel):
         default=None,
         nullable=True,
     )
+    address_postal_code: Optional[str] = Field(
+        description="Postal code of the location",
+        max_length=8,
+        default=None,
+        nullable=True,
+        pattern=r"^([A-Za-z][A-Ha-hJ-Yj-y]?[0-9][A-Za-z0-9]? ?[0-9][A-Za-z]{2}|[Gg][Ii][Rr] ?0[Aa]{2})$",
+    )
     address_country_iso3: IsoCountryCode = Field(
         description="ISO 3166-1 alpha-3 country code",
         max_length=3,
