@@ -55,7 +55,7 @@ def create_location(location: LocationRequest) -> DBLocation:
 def delete_location(location_id: uuid.UUID) -> bool:
     location = get_location(location_id)
     if not location:
-        return False
+        raise HTTPException(status_code=404, detail="Location not found")
     session.delete(location)
     session.commit()
     return True
