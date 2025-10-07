@@ -1,9 +1,4 @@
-import logging
-from contextlib import asynccontextmanager
-
 import dotenv
-from alembic import command
-from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,20 +8,7 @@ from src.routers.go_heavier import locations
 dotenv.load_dotenv()
 
 
-def run_migrations():
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
-
-
-@asynccontextmanager
-async def lifespan(app_: FastAPI):
-    logging.info("running migrations...")
-    run_migrations()
-    yield
-    logging.info("Shutting down...")
-
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(title="TheSammy2010 API", version="1.0.0")
 origins = [
     "http://localhost",
     "http://localhost:8000",
