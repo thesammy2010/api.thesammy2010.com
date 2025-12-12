@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.routers import root
-from src.routers.go_heavier import config, exercises, locations
+from src.routers.go_heavier import config, exercises, locations, workouts
 
 dotenv.load_dotenv()
 
@@ -24,4 +24,5 @@ app.add_middleware(
 app.include_router(root.router)
 app.include_router(locations.router)
 app.include_router(exercises.router)
+app.include_router(workouts.router)
 app.include_router(config.router)

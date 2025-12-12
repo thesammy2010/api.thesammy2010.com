@@ -48,3 +48,16 @@ fly ssh console -a api-thesammy2010-com
 echo $DATABASE_URL
 fly proxy 15432:5432 -a thesammy2010
 ```
+
+### Running migrations
+```bash
+alembic upgrade head
+```
+
+Try to use `alembic revision --autogenerate -m "message"` to create new migrations.
+
+### db for local development
+```bash
+docker compose up -d postgres
+```
+
