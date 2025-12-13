@@ -11,6 +11,7 @@ primary_region = "lhr"
   PORT = "8000"
   ENVIRONMENT = "prod"
   GOOGLE_CLIENT_ID = "904361218828-9iva1dgj3dce9eku248e3l71spa5ho3d.apps.googleusercontent.com"
+  DEFAULT_DB_PAGE_SIZE = "100"
 
 [http_service]
   internal_port = 8000

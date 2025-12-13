@@ -18,3 +18,4 @@ class Config:
     )
     ENVIRONMENT: Environment = Environment(os.getenv("ENVIRONMENT", "local"))
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
+    DEFAULT_DB_PAGE_SIZE: int = int(os.getenv("DEFAULT_DB_PAGE_SIZE", "50"))
