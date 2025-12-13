@@ -11,8 +11,10 @@ dotenv.load_dotenv()
 app = FastAPI(title="TheSammy2010 API", version="1.0.0")
 origins = [
     "http://localhost",
+    "http://localhost:3000",
     "http://localhost:8000",
     "https://api.thesammy2010.com",
+    "https://thesammy2010.com",
 ]
 app.add_middleware(
     CORSMiddleware,
