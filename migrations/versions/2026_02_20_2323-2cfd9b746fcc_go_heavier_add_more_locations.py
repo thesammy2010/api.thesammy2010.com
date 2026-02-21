@@ -44,6 +44,7 @@ def upgrade() -> None:
             location = Location(**record)
             print("adding {}".format(location))
             db.session.add(location)
+            db.session.commit()
 
 
 def downgrade() -> None:

@@ -33,4 +33,4 @@ class Exercise(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Exercise(name={self.name}, description={self.description}>"
+        return f"<Exercise(name={self.name}, description={self.description})>"
