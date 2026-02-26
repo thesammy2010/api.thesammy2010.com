@@ -36,4 +36,4 @@ class Location(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Location(name={self.name}, description={self.description}>"
+        return f"<Location(name={self.name}, description={self.description})>"
