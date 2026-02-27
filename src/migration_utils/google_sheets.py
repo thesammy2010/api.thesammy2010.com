@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from typing import List, Mapping
+from typing import Dict, List, Mapping
 
 import gspread
 import pendulum
@@ -52,44 +52,59 @@ def get_workout_from_sheet(cfg: Config = Config()) -> List[Workout]:
     exercise_mapping = get_exercises_mapping(cfg=cfg)
     workouts_sheet = get_workouts(cfg=cfg)
     workouts: List[Workout] = []
+    header: List[str] = workouts_sheet.get_all_values()[0]
 
-    for idx, row in enumerate(workouts_sheet.get_all_values()[1:]):
-        row: List[str]
-        location_id = locations_mapping[row[1]] if row[1] else None
-        exercise_id = exercise_mapping[row[2]] if row[2] else None
+    for idx, line in enumerate(workouts_sheet.get_all_values()[1:]):
+        row: Dict[str, str] = dict(zip(header, line))
+        id_ = uuid.UUID(row["id"]) if row["id"] else uuid.uuid4()
+        location_id = locations_mapping[row["location"]] if row["location"] else None
+        exercise_id = exercise_mapping[row["exercise"]] if row["exercise"] else None
+
         if idx == 0:  # first row
             workout = Workout(
-                id=uuid.uuid4(),
+                id=id_,
                 location_id=location_id,
                 exercise_id=exercise_id,
                 workout_time=pendulum.instance(
-                    datetime.datetime.fromisoformat(row[3]).replace(
+                    datetime.datetime.fromisoformat(row["workout_time"]).replace(
                         tzinfo=datetime.timezone.utc
                     )
                 ),
-                index=int(row[4]),
-                weight_kg=float(row[5]),
-                repetitions=int(row[6]),
-                bar_weight_kg=float(row[7]) if row[7] else None,
+                index=int(row["index"]),
+                weight_kg=float(row["weight_kg"]),
+                repetitions=int(row["repetitions"]),
+                bar_weight_kg=float(row["bar_weight_kg"])
+                if row["bar_weight_kg"]
+                else None,
+                supplementary_weight_kg=float(row["supplementary_weight_kg"])
+                if row["supplementary_weight_kg"]
+                else None,
+                notes=row["notes"] or None,
                 created_at=pendulum.now(),
                 updated_at=pendulum.now(),
             )
         else:  # allow for using previous value for certain fields
             workout = Workout(
-                id=uuid.uuid4(),
+                id=id_,
                 location_id=location_id or workouts[-1].location_id,
                 exercise_id=exercise_id or workouts[-1].exercise_id,
                 workout_time=pendulum.instance(
-                    datetime.datetime.fromisoformat(row[3]).replace(
+                    datetime.datetime.fromisoformat(row["workout_time"]).replace(
                         tzinfo=datetime.timezone.utc
                     )
                 )
-                if row[3]
+                if row["workout_time"]
                 else workouts[-1].workout_time,
-                index=int(row[4]),
-                weight_kg=float(row[5]),
-                repetitions=int(row[6]),
-                bar_weight_kg=float(row[7]) if row[7] else None,
+                index=int(row["index"]) if row["index"] else workouts[-1].index + 1,
+                weight_kg=float(row["weight_kg"]),
+                repetitions=int(row["repetitions"]),
+                bar_weight_kg=float(row["bar_weight_kg"])
+                if row["bar_weight_kg"]
+                else None,
+                supplementary_weight_kg=float(row["supplementary_weight_kg"])
+                if row["supplementary_weight_kg"]
+                else None,
+                notes=row["notes"] or None,
                 created_at=pendulum.now(),
                 updated_at=pendulum.now(),
             )
