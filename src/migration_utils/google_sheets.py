@@ -80,10 +80,18 @@ def get_workout_from_sheet(cfg: Config = Config()) -> List[Workout]:
                 if row["supplementary_weight_kg"]
                 else None,
                 notes=row["notes"] or None,
+                exercise_index=1,
                 created_at=pendulum.now(),
                 updated_at=pendulum.now(),
             )
         else:  # allow for using previous value for certain fields
+            if (exercise_id or workouts[-1].exercise_id) == workouts[-1].exercise_id:
+                exercise_index = workouts[-1].exercise_index
+            elif (location_id or workouts[-1].location_id) == workouts[-1].location_id:
+                exercise_index = workouts[-1].exercise_index + 1
+            else:
+                exercise_index = 1
+
             workout = Workout(
                 id=id_,
                 location_id=location_id or workouts[-1].location_id,
@@ -106,6 +114,7 @@ def get_workout_from_sheet(cfg: Config = Config()) -> List[Workout]:
                 else None,
                 notes=row["notes"] or None,
                 created_at=pendulum.now(),
+                exercise_index=exercise_index,
                 updated_at=pendulum.now(),
             )
         workouts.append(workout)
