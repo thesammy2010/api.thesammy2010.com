@@ -2,9 +2,11 @@ import logging
 import uuid
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
+from src.dependencies.auth import require_role
 from src.models.go_heavier.exercise import Exercise as DBExercise
+from src.models.user import Role, User
 from src.resolvers.go_heavier import exercises
 from src.schemas.go_heavier.exercises import ExerciseRequest, ExerciseResponse
 
@@ -12,12 +14,15 @@ router = APIRouter(prefix="/go-heavier", tags=["exercises"])
 
 
 @router.get("/exercises", response_model=List[ExerciseResponse])
-def get_exercises() -> List[DBExercise]:
+def get_exercises(user: User = Depends(require_role(Role.none))) -> List[DBExercise]:
     return exercises.get_exercises()
 
 
 @router.get("/exercises/{exercise_id}", response_model=Optional[ExerciseResponse])
-async def get_exercise(exercise_id: Annotated[str, uuid.UUID]) -> Optional[DBExercise]:
+async def get_exercise(
+    exercise_id: Annotated[str, uuid.UUID],
+    user: User = Depends(require_role(Role.none)),
+) -> Optional[DBExercise]:
     try:
         exercise_uuid = uuid.UUID(exercise_id)
     except ValueError:
@@ -32,7 +37,9 @@ async def get_exercise(exercise_id: Annotated[str, uuid.UUID]) -> Optional[DBExe
 
 
 @router.post("/exercises", response_model=ExerciseResponse)
-async def create_exercise(exercise: ExerciseRequest) -> Optional[DBExercise]:
+async def create_exercise(
+    exercise: ExerciseRequest, user: User = Depends(require_role(Role.editor))
+) -> Optional[DBExercise]:
     try:
         new_exercise = exercises.create_exercise(exercise)
         return new_exercise
@@ -45,6 +52,7 @@ async def create_exercise(exercise: ExerciseRequest) -> Optional[DBExercise]:
 async def update_exercise(
     exercise_id: Annotated[str, uuid.UUID],
     exercise: ExerciseRequest,
+    user: User = Depends(require_role(Role.editor)),
 ) -> Optional[DBExercise]:
     try:
         exercise_uuid = uuid.UUID(exercise_id)
@@ -62,7 +70,10 @@ async def update_exercise(
 
 
 @router.delete("/exercises/{exercise_id}")
-def delete_exercise(exercise_id: Annotated[str, uuid.UUID]) -> Response:
+def delete_exercise(
+    exercise_id: Annotated[str, uuid.UUID],
+    user: User = Depends(require_role(Role.admin)),
+) -> Response:
     try:
         exercise_uuid = uuid.UUID(exercise_id)
     except ValueError:

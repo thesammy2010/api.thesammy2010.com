@@ -2,9 +2,11 @@ import logging
 import uuid
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
+from src.dependencies.auth import require_role
 from src.models.go_heavier.location import Location as DBLocation
+from src.models.user import Role, User
 from src.resolvers.go_heavier import locations
 from src.schemas.go_heavier.locations import LocationRequest, LocationResponse
 
@@ -12,12 +14,15 @@ router = APIRouter(prefix="/go-heavier", tags=["locations"])
 
 
 @router.get("/locations", response_model=List[LocationResponse])
-def get_locations() -> List[DBLocation]:
+def get_locations(user: User = Depends(require_role(Role.viewer))) -> List[DBLocation]:
     return locations.get_locations()
 
 
 @router.get("/locations/{location_id}", response_model=Optional[LocationResponse])
-async def get_location(location_id: Annotated[str, uuid.UUID]) -> Optional[DBLocation]:
+async def get_location(
+    location_id: Annotated[str, uuid.UUID],
+    user: User = Depends(require_role(Role.viewer)),
+) -> Optional[DBLocation]:
     try:
         location_uuid = uuid.UUID(location_id)
     except ValueError:
@@ -32,7 +37,9 @@ async def get_location(location_id: Annotated[str, uuid.UUID]) -> Optional[DBLoc
 
 
 @router.post("/locations", response_model=LocationResponse)
-async def create_location(location: LocationRequest) -> Optional[DBLocation]:
+async def create_location(
+    location: LocationRequest, user: User = Depends(require_role(Role.editor))
+) -> Optional[DBLocation]:
     try:
         new_location = locations.create_location(location)
         return new_location
@@ -45,6 +52,7 @@ async def create_location(location: LocationRequest) -> Optional[DBLocation]:
 async def update_location(
     location_id: Annotated[str, uuid.UUID],
     location: LocationRequest,
+    user: User = Depends(require_role(Role.editor)),
 ) -> Optional[DBLocation]:
     try:
         location_uuid = uuid.UUID(location_id)
@@ -62,7 +70,10 @@ async def update_location(
 
 
 @router.delete("/locations/{location_id}")
-def delete_location(location_id: Annotated[str, uuid.UUID]) -> Response:
+def delete_location(
+    location_id: Annotated[str, uuid.UUID],
+    user: User = Depends(require_role(Role.admin)),
+) -> Response:
     try:
         location_uuid = uuid.UUID(location_id)
     except ValueError:
