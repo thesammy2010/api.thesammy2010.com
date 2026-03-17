@@ -2,9 +2,11 @@ import logging
 import uuid
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
+from src.dependencies.auth import require_role
 from src.models.go_heavier.workout import Workout as DBWorkout
+from src.models.user import Role, User
 from src.resolvers.go_heavier import workouts
 from src.schemas.go_heavier.workouts import (
     CreateWorkoutsRequest,
@@ -17,7 +19,9 @@ router = APIRouter(prefix="/go-heavier", tags=["workouts"])
 
 
 @router.get("/workouts/{workout_id}", response_model=WorkoutResponse)
-async def get_workout(workout_id: str) -> Optional[DBWorkout]:
+async def get_workout(
+    workout_id: str, user: User = Depends(require_role(Role.viewer))
+) -> Optional[DBWorkout]:
     try:
         workout_uuid = uuid.UUID(workout_id)
     except ValueError:
@@ -34,13 +38,14 @@ async def get_workout(workout_id: str) -> Optional[DBWorkout]:
 @router.get("/workouts", response_model=List[WorkoutResponse])
 async def get_workouts(
     request: Annotated[ListWorkoutsRequest, Query()],
+    user: User = Depends(require_role(Role.viewer)),
 ) -> List[DBWorkout]:
     return workouts.get_workouts(request=request)
 
 
 @router.post("/workouts", response_model=WorkoutResponse)
 async def create_workout(
-    workouts_: CreateWorkoutsRequest,
+    workouts_: CreateWorkoutsRequest, user: User = Depends(require_role(Role.editor))
 ) -> Optional[List[DBWorkout]]:
     try:
         new_workouts = workouts.create_workouts(workouts=workouts_)
@@ -55,6 +60,7 @@ async def create_workout(
 def update_workout(
     workout_id: Annotated[str, uuid.UUID],
     workout: UpdateWorkoutRequest,
+    user: User = Depends(require_role(Role.editor)),
 ) -> Optional[DBWorkout]:
     try:
         workout_uuid = uuid.UUID(workout_id)
@@ -73,6 +79,7 @@ def update_workout(
 @router.delete("/workouts/{workout_id}", response_model=WorkoutResponse)
 async def delete_workout(
     workout_id: Annotated[str, uuid.UUID],
+    user: User = Depends(require_role(Role.admin)),
 ) -> Response:
     try:
         workout_uuid = uuid.UUID(workout_id)
