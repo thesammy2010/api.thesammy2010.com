@@ -35,6 +35,7 @@ def upgrade() -> None:
         sa.Column("bar_weight_kg", sa.Float(), nullable=True),
         sa.Column("supplementary_weight_kg", sa.Float(), nullable=True),
         sa.Column("notes", sa.String(length=512), nullable=True),
+        sa.Column("exercise_index", sa.Integer(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(

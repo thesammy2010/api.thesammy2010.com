@@ -22,6 +22,7 @@ class Workout(Base):
     exercise_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("exercises.id"), nullable=False
     )
+    exercise_index: Mapped[int] = mapped_column(nullable=True)
     workout_time: Mapped[pendulum.DateTime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
