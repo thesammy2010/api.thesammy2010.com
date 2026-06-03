@@ -1,12 +1,20 @@
+import enum
 import uuid
 
 from sqlalchemy import event, func
 from sqlalchemy.engine.base import Connection
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm.mapper import Mapper
-from sqlalchemy.sql.sqltypes import DateTime, String
+from sqlalchemy.sql.sqltypes import DateTime, Enum, String
 
 from src.models import Base
+
+
+class Role(str, enum.Enum):
+    none = "none"
+    viewer = "viewer"
+    editor = "editor"
+    admin = "admin"
 
 
 class User(Base):
@@ -20,6 +28,9 @@ class User(Base):
     )
     created_at: Mapped[uuid.UUID] = mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()
+    )
+    role: Mapped[Role] = mapped_column(
+        Enum(Role, name="role"), nullable=False, server_default=Role.none.value
     )
     updated_at: Mapped[uuid.UUID] = mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()

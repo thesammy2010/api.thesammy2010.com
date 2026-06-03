@@ -1,4 +1,5 @@
 import enum
+from typing import Any, Dict
 
 from google.auth.transport import requests
 from google.oauth2 import id_token
@@ -26,7 +27,7 @@ def strtobool(val):
         raise ValueError("invalid truth value %r" % (val,))
 
 
-def decode_token(token: str):
+def decode_token(token: str) -> Dict[str, Any]:
     return id_token.verify_oauth2_token(
         token, requests.Request(), Config.GOOGLE_CLIENT_ID
     )
