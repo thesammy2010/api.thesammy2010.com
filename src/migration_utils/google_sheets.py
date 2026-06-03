@@ -1,12 +1,12 @@
-import datetime
 import uuid
-from typing import Dict, List, Mapping
+from typing import List, Mapping
 
 import gspread
+import pandas
 import pendulum
 
 from src.config import Config
-from src.models.go_heavier import Workout
+from src.models.go_heavier import Exercise, Location, Workout
 
 
 def _get_worksheet(
@@ -47,76 +47,103 @@ def get_exercises_mapping(cfg: Config = Config()) -> Mapping[str, uuid.UUID]:
     }
 
 
-def get_workout_from_sheet(cfg: Config = Config()) -> List[Workout]:
+def load_locations_from_sheet(cfg: Config = Config()) -> List[Location]:
+    locations_sheet = get_locations(cfg=cfg)
+    locations: List[Location] = []
+    data = locations_sheet.get_all_values()
+    df = pandas.DataFrame(data[1:], columns=data[0])
+
+    df["id"] = df["id"].map(uuid.UUID)
+    df["name"] = df["name"].astype(str)
+    df["description"] = df["description"].astype(str)
+    df["address_line1"] = df["address_line1"].astype(str)
+    df["address_line2"] = df["address_line2"].astype(str)
+    df["address_city"] = df["address_city"].astype(str)
+    df["address_postal_code"] = df["address_postal_code"].astype(str)
+    df["address_country_iso3"] = df["address_country_iso3"].astype(str)
+    df["created_at"] = pandas.to_datetime(df["created_at"]).replace("", None)
+    df["updated_at"] = pandas.to_datetime(df["updated_at"]).replace("", None)
+
+    for row in df.to_dict(orient="records"):
+        try:
+            location = Location(**row)
+        except Exception as e:
+            print(f"Error creating location: {e}")
+            raise
+        locations.append(location)
+
+    return locations
+
+
+def load_exercises_from_sheet(cfg: Config = Config()) -> List[Exercise]:
+    exercises_sheet = get_exercises(cfg=cfg)
+    exercises: List[Exercise] = []
+    data = exercises_sheet.get_all_values()
+
+    df = pandas.DataFrame(data[1:], columns=data[0])
+
+    df["id"] = df["id"].map(uuid.UUID)
+    df["bipedal"] = df["bipedal"].astype(bool)
+    df["free_weights"] = df["free_weights"].astype(bool)
+    df["created_at"] = df["created_at"].apply(pendulum.parse)
+    df["updated_at"] = df["updated_at"].apply(pendulum.parse)
+
+    for row in df.to_dict(orient="records"):
+        try:
+            exercise = Exercise(**row)
+        except Exception as e:
+            print(f"Error creating exercise: {e}")
+            raise
+        exercises.append(exercise)
+
+    return exercises
+
+
+def load_workouts_from_sheet(
+    cfg: Config = Config(), range_start=0, range_end=100
+) -> List[Workout]:
     locations_mapping = get_locations_mapping(cfg=cfg)
     exercise_mapping = get_exercises_mapping(cfg=cfg)
     workouts_sheet = get_workouts(cfg=cfg)
     workouts: List[Workout] = []
-    header: List[str] = workouts_sheet.get_all_values()[0]
+    data = workouts_sheet.get_all_values()
 
-    for idx, line in enumerate(workouts_sheet.get_all_values()[1:]):
-        row: Dict[str, str] = dict(zip(header, line))
-        id_ = uuid.UUID(row["id"]) if row["id"] else uuid.uuid4()
-        location_id = locations_mapping[row["location"]] if row["location"] else None
-        exercise_id = exercise_mapping[row["exercise"]] if row["exercise"] else None
+    df = pandas.DataFrame(data[1 + range_start : range_end], columns=data[0])
+    df = df.replace("", None)
+    df["location"] = df["location"].map(locations_mapping)
+    df["exercise"] = df["exercise"].map(exercise_mapping)
 
-        if idx == 0:  # first row
-            workout = Workout(
-                id=id_,
-                location_id=location_id,
-                exercise_id=exercise_id,
-                workout_time=pendulum.instance(
-                    datetime.datetime.fromisoformat(row["workout_time"]).replace(
-                        tzinfo=datetime.timezone.utc
-                    )
-                ),
-                index=int(row["index"]),
-                weight_kg=float(row["weight_kg"]),
-                repetitions=int(row["repetitions"]),
-                bar_weight_kg=float(row["bar_weight_kg"])
-                if row["bar_weight_kg"]
-                else None,
-                supplementary_weight_kg=float(row["supplementary_weight_kg"])
-                if row["supplementary_weight_kg"]
-                else None,
-                notes=row["notes"] or None,
-                exercise_index=1,
-                created_at=pendulum.now(),
-                updated_at=pendulum.now(),
-            )
-        else:  # allow for using previous value for certain fields
-            if (exercise_id or workouts[-1].exercise_id) == workouts[-1].exercise_id:
-                exercise_index = workouts[-1].exercise_index
-            elif (location_id or workouts[-1].location_id) == workouts[-1].location_id:
-                exercise_index = workouts[-1].exercise_index + 1
-            else:
-                exercise_index = 1
+    df["index"] = pandas.to_numeric(df["index"], errors="coerce")
+    df["weight_kg"] = df["weight_kg"].astype(float)
+    df["repetitions"] = df["repetitions"].astype(int)
+    df["bar_weight_kg"] = df["bar_weight_kg"].astype(float)
+    df["supplementary_weight_kg"] = df["supplementary_weight_kg"].astype(float)
+    df["notes"] = df["notes"].astype(str)
 
-            workout = Workout(
-                id=id_,
-                location_id=location_id or workouts[-1].location_id,
-                exercise_id=exercise_id or workouts[-1].exercise_id,
-                workout_time=pendulum.instance(
-                    datetime.datetime.fromisoformat(row["workout_time"]).replace(
-                        tzinfo=datetime.timezone.utc
-                    )
-                )
-                if row["workout_time"]
-                else workouts[-1].workout_time,
-                index=int(row["index"]) if row["index"] else workouts[-1].index + 1,
-                weight_kg=float(row["weight_kg"]),
-                repetitions=int(row["repetitions"]),
-                bar_weight_kg=float(row["bar_weight_kg"])
-                if row["bar_weight_kg"]
-                else None,
-                supplementary_weight_kg=float(row["supplementary_weight_kg"])
-                if row["supplementary_weight_kg"]
-                else None,
-                notes=row["notes"] or None,
-                created_at=pendulum.now(),
-                exercise_index=exercise_index,
-                updated_at=pendulum.now(),
-            )
+    df["location"] = df["location"].ffill()
+    df["exercise"] = df["exercise"].ffill()
+    df["workout_time"] = df["workout_time"].ffill()
+    df["index"] = (
+        df["index"].ffill() + df.groupby(df["index"].notna().cumsum()).cumcount()
+    ).astype(int)
+
+    # Parse workout times as UK local time (Europe/London), then convert to UTC
+    # This automatically handles British Summer Time (BST) and GMT
+    df["workout_time"] = df["workout_time"].apply(
+        lambda x: pendulum.parse(x, tz="Europe/London").in_tz("UTC")
+    )
+
+    df["created_at"] = pendulum.now("UTC")
+    df["updated_at"] = pendulum.now("UTC")
+
+    df = df.rename({"location": "location_id", "exercise": "exercise_id"}, axis=1)
+
+    for row in df.to_dict(orient="records"):
+        try:
+            workout = Workout(**row)
+        except Exception as e:
+            print(f"Error creating workout: {e}")
+            raise
         workouts.append(workout)
 
     return workouts

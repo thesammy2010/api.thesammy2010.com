@@ -59,5 +59,6 @@ Try to use `alembic revision --autogenerate -m "message"` to create new migratio
 ### db for local development
 ```bash
 docker compose up -d postgres
+psql -U api -d api_thesammy2010_com
 ```
 
