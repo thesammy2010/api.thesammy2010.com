@@ -9,7 +9,6 @@ from src.config import Config
 def init_db(cfg: Config) -> Session:
     engine = sqlalchemy.create_engine(
         cfg.DATABASE_URL,
-        echo=False if cfg.ENVIRONMENT == cfg.ENVIRONMENT.PRODUCTION else True,
     )
     logging.debug("Initializing database")
 

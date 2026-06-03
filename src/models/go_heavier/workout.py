@@ -44,4 +44,4 @@ class Workout(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Workout(time={self.workout_time}, index={self.index}, weight={self.weight_kg}, reps{self.repetitions})>"
+        return f"<Workout(id={self.id}, time={self.workout_time}, index={self.index}, weight={self.weight_kg}, reps{self.repetitions})>"
