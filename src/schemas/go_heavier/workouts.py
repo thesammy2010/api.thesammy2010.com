@@ -1,7 +1,9 @@
+import math
+from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from src.schemas.utils import PaginationParams
 
@@ -11,14 +13,10 @@ class _BaseWorkout(BaseModel):
 
     location_id: UUID = Field(
         description="Unique identifier for this workout location",
-        min_length=32,
-        max_length=36,
         nullable=False,
     )
     exercise_id: UUID = Field(
         description="Unique identifier for this workout exercise",
-        min_length=32,
-        max_length=36,
         nullable=False,
     )
     workout_time: AwareDatetime = Field(
@@ -41,7 +39,7 @@ class _BaseWorkout(BaseModel):
     weight_kg: float = Field(
         description="The weight used during the workout in kilograms",
         nullable=False,
-        gt=0.0,
+        ge=0.0,
         lt=1000.0,
     )
     bar_weight_kg: Optional[float] = Field(
@@ -49,14 +47,14 @@ class _BaseWorkout(BaseModel):
         nullable=True,
         gt=0.0,
         lt=100.0,
-        default=0.0,
+        default=None,
     )
     supplementary_weight_kg: Optional[float] = Field(
         description="The supplementary weight added to the bar during the workout in kilograms",
         nullable=True,
         gt=0.0,
         lt=100.0,
-        default=0.0,
+        default=None,
     )
     notes: Optional[str] = Field(
         description="Additional notes or comments about the workout",
@@ -64,6 +62,17 @@ class _BaseWorkout(BaseModel):
         nullable=True,
         default=None,
     )
+
+    @field_validator("bar_weight_kg", "supplementary_weight_kg", mode="before")
+    @classmethod
+    def convert_nan_to_none(cls, value):
+        """Convert NaN or 0.0 values to None for optional float fields"""
+        if value is None:
+            return None
+        if isinstance(value, float):
+            if math.isnan(value) or value == 0.0:
+                return None
+        return value
 
 
 class CreateWorkoutsRequest(BaseModel):
@@ -133,3 +142,14 @@ class WorkoutResponse(_BaseWorkout):
     id: UUID
     created_at: AwareDatetime
     updated_at: Optional[AwareDatetime]
+
+    @field_validator("created_at", "updated_at", "workout_time", mode="before")
+    @classmethod
+    def ensure_timezone_aware(cls, value):
+        """Convert naive datetimes to timezone-aware datetimes (UTC)"""
+        if value is None:
+            return None
+        if isinstance(value, datetime) and value.tzinfo is None:
+            # If naive datetime, assume UTC
+            return value.replace(tzinfo=timezone.utc)
+        return value
