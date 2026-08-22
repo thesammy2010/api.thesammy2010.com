@@ -8,6 +8,8 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 
@@ -44,7 +46,7 @@ class Config:
                     f.write(buffer)
                     return f.name
             except binascii.Error:
-                logging.error(
+                logger.error(
                     f"Could not decode base64 encoded service account json: {sa_json}"
                 )
         return None

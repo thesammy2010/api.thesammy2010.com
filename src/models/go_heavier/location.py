@@ -16,6 +16,7 @@ class Location(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    logo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
     address_line1: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     address_line2: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

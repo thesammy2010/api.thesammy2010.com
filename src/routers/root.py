@@ -6,6 +6,8 @@ from fastapi import APIRouter, Header, HTTPException
 from src.common import CommonHeaders, decode_token
 from src.resolvers.users import create_user_in_db, get_current_user
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -27,7 +29,7 @@ async def create_user(headers: Annotated[CommonHeaders, Header()]) -> Dict[str, 
     try:
         claims = decode_token(headers.authorization.replace("Bearer ", ""))
     except Exception as e:
-        logging.error(f"Failed to decode token: {e}")
+        logger.error(f"Failed to decode token: {e}")
         raise HTTPException(
             status_code=401, detail="User must be authenticated with Google"
         )

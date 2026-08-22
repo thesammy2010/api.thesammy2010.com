@@ -2,8 +2,17 @@ import datetime
 import uuid
 from typing import Optional
 
+from sqlalchemy import desc, distinct, func
+
 from src.db import session
 from src.models.go_heavier.exercise import Exercise as DBExercise
+from src.models.go_heavier.location import Location as DBLocation
+from src.models.go_heavier.workout import Workout as DBWorkout
+from src.schemas.go_heavier.exercise_stats import (
+    ExerciseStatsRequest,
+    ExerciseStatsResponse,
+    LocationStats,
+)
 from src.schemas.go_heavier.exercises import ExerciseRequest
 
 
@@ -56,3 +65,93 @@ def delete_exercise(exercise_id: uuid.UUID) -> bool:
     session.delete(exercise)
     session.commit()
     return True
+
+
+def get_exercise_stats(
+    exercise_id: uuid.UUID, request: ExerciseStatsRequest
+) -> Optional[ExerciseStatsResponse]:
+    """Aggregate an exercise's history.
+
+    A session is one distinct ``workout_time``, since every set logged in a
+    session shares that session's timestamp.
+    """
+    exercise = get_exercise(exercise_id)
+    if not exercise:
+        return None
+
+    conditions = [DBWorkout.exercise_id == exercise_id]
+    if request.after:
+        conditions.append(DBWorkout.workout_time >= request.after)
+    if request.before:
+        conditions.append(DBWorkout.workout_time <= request.before)
+
+    volume = func.sum(DBWorkout.weight_kg * DBWorkout.repetitions)
+    (
+        sessions,
+        total_sets,
+        total_repetitions,
+        total_volume_kg,
+        heaviest_weight_kg,
+        first_performed,
+        last_performed,
+        distinct_locations,
+    ) = (
+        session.query(
+            func.count(distinct(DBWorkout.workout_time)),
+            func.count(DBWorkout.id),
+            func.sum(DBWorkout.repetitions),
+            volume,
+            func.max(DBWorkout.weight_kg),
+            func.min(DBWorkout.workout_time),
+            func.max(DBWorkout.workout_time),
+            func.count(distinct(DBWorkout.location_id)),
+        )
+        .filter(*conditions)
+        .one()
+    )
+
+    top_locations = (
+        session.query(
+            DBWorkout.location_id,
+            DBLocation.name,
+            func.count(distinct(DBWorkout.workout_time)).label("sessions"),
+            func.count(DBWorkout.id).label("sets"),
+            func.sum(DBWorkout.repetitions).label("repetitions"),
+            volume.label("volume_kg"),
+        )
+        .join(DBLocation, DBLocation.id == DBWorkout.location_id)
+        .filter(*conditions)
+        .group_by(DBWorkout.location_id, DBLocation.name)
+        .order_by(desc("sets"), DBLocation.name)
+        .limit(request.top_locations)
+        .all()
+    )
+
+    total_repetitions = total_repetitions or 0
+    return ExerciseStatsResponse(
+        exercise_id=exercise.id,
+        name=exercise.name,
+        sessions=sessions,
+        first_performed=first_performed,
+        last_performed=last_performed,
+        total_sets=total_sets,
+        total_repetitions=total_repetitions,
+        total_volume_kg=round(total_volume_kg or 0.0, 2),
+        heaviest_weight_kg=heaviest_weight_kg,
+        average_sets_per_session=round(total_sets / sessions, 2) if sessions else 0.0,
+        average_repetitions_per_set=(
+            round(total_repetitions / total_sets, 2) if total_sets else 0.0
+        ),
+        distinct_locations=distinct_locations,
+        top_locations=[
+            LocationStats(
+                location_id=row.location_id,
+                name=row.name,
+                sessions=row.sessions,
+                sets=row.sets,
+                repetitions=row.repetitions or 0,
+                volume_kg=round(row.volume_kg or 0.0, 2),
+            )
+            for row in top_locations
+        ],
+    )
