@@ -12,6 +12,8 @@ from src.schemas.go_heavier.location_stats import (
 )
 from src.schemas.go_heavier.locations import LocationRequest, LocationResponse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/go-heavier", tags=["locations"])
 
 
@@ -59,7 +61,7 @@ async def create_location(location: LocationRequest) -> Optional[DBLocation]:
         new_location = locations.create_location(location)
         return new_location
     except Exception as e:
-        logging.error(f"Error creating location: {e}")
+        logger.error(f"Error creating location: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

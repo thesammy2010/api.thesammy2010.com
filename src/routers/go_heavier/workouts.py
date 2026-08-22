@@ -17,6 +17,8 @@ from src.schemas.go_heavier.workouts import (
     WorkoutResponse,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/go-heavier", tags=["workouts"])
 
 
@@ -58,7 +60,7 @@ async def create_workout(
         new_workouts = workouts.create_workouts(workouts=workouts_)
         return new_workouts
     except Exception as e:
-        logging.error(f"Error creating workout: {e}")
+        logger.error(f"Error creating workout: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

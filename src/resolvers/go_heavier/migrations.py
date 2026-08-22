@@ -17,6 +17,8 @@ from src.schemas.go_heavier.migrations import (
     TableMigrationResult,
 )
 
+logger = logging.getLogger(__name__)
+
 cfg = Config()
 
 # Locations and exercises are migrated first because workouts reference them.
@@ -29,6 +31,14 @@ MIGRATION_ORDER: Sequence[MigrationTable] = (
 
 class MigrationConfigurationError(RuntimeError):
     """Raised when the migration cannot run because of missing configuration."""
+
+
+class MigrationFailedError(RuntimeError):
+    """Raised when a table could not be migrated.
+
+    Carries the table name so that the router can log the whole failure in one
+    line, rather than each layer logging its own half of it.
+    """
 
 
 def _load_rows(table: MigrationTable, request: RunMigrationRequest) -> List[Base]:
@@ -55,24 +65,25 @@ def run_migration(request: RunMigrationRequest) -> RunMigrationResponse:
         if table not in request.tables:
             continue
 
-        rows = _load_rows(table=table, request=request)
-        logging.info(f"Loaded {len(rows)} {table.value} from the sheet")
-
-        if request.dry_run:
-            results.append(TableMigrationResult(table=table, rows=len(rows), written=0))
-            continue
-
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
         try:
+            rows = _load_rows(table=table, request=request)
+            logger.info(f"Loaded {len(rows)} {table.value} from the sheet")
+
+            if request.dry_run:
+                results.append(
+                    TableMigrationResult(table=table, rows=len(rows), written=0)
+                )
+                continue
+
+            now = datetime.datetime.now(tz=datetime.timezone.utc)
             for row in rows:
                 row.updated_at = now
                 db.session.merge(row)
             db.session.commit()
-        except Exception:
+        except Exception as e:
             # The session is shared across requests, so it must not be left dirty
             db.session.rollback()
-            logging.error(f"Failed to migrate {table.value}, rolled back")
-            raise
+            raise MigrationFailedError(f"could not migrate {table.value}: {e}") from e
 
         results.append(
             TableMigrationResult(table=table, rows=len(rows), written=len(rows))

@@ -12,6 +12,8 @@ from src.schemas.go_heavier.exercise_stats import (
 )
 from src.schemas.go_heavier.exercises import ExerciseRequest, ExerciseResponse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/go-heavier", tags=["exercises"])
 
 
@@ -59,7 +61,7 @@ async def create_exercise(exercise: ExerciseRequest) -> Optional[DBExercise]:
         new_exercise = exercises.create_exercise(exercise)
         return new_exercise
     except Exception as e:
-        logging.error(f"Error creating exercise: {e}")
+        logger.error(f"Error creating exercise: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

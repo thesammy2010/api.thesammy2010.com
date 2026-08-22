@@ -8,6 +8,8 @@ from src.common import decode_token
 from src.db import session
 from src.models.user import User
 
+logger = logging.getLogger(__name__)
+
 
 def get_current_user(token: str) -> User:
     try:
@@ -17,7 +19,7 @@ def get_current_user(token: str) -> User:
         )
 
     except google.auth.exceptions.InvalidValue as e:
-        logging.error(f"Failed to decode token: {e}")
+        logger.error(f"Failed to decode token: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
