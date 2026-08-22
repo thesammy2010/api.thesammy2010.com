@@ -2,9 +2,10 @@ import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.common import IsoCountryCode
+from src.schemas.utils import validate_optional_url
 
 
 class _BaseLocation(BaseModel):
@@ -20,6 +21,18 @@ class _BaseLocation(BaseModel):
         default=None,
         nullable=True,
     )
+    logo_url: Optional[str] = Field(
+        description="URL of the location's logo",
+        max_length=512,
+        default=None,
+        nullable=True,
+    )
+
+    @field_validator("logo_url", mode="before")
+    @classmethod
+    def logo_url_is_valid(cls, value: Optional[str]) -> Optional[str]:
+        return validate_optional_url(value)
+
     address_line1: Optional[str] = Field(
         description="First line of the address",
         max_length=255,

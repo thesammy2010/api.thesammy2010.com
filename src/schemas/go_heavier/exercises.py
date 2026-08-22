@@ -1,9 +1,10 @@
 import datetime
 from typing import Optional
-from urllib.parse import ParseResult, urlparse
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from src.schemas.utils import validate_optional_url
 
 
 class _BaseExercise(BaseModel):
@@ -43,14 +44,10 @@ class _BaseExercise(BaseModel):
         nullable=True,
     )
 
+    @field_validator("image_url", mode="before")
     @classmethod
-    @field_validator("image_url")
     def image_url_is_valid(cls, value: Optional[str]) -> Optional[str]:
-        result: ParseResult = urlparse(value)
-        if all([result.scheme, result.netloc]):
-            return value
-
-        raise ValueError(f"Invalid URL format: {result}")
+        return validate_optional_url(value)
 
     free_weights: Optional[bool] = Field(
         description="Indicates if the exercise uses free weights or not",

@@ -2,10 +2,14 @@ import logging
 import uuid
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from src.models.go_heavier.location import Location as DBLocation
 from src.resolvers.go_heavier import locations
+from src.schemas.go_heavier.location_stats import (
+    LocationStatsRequest,
+    LocationStatsResponse,
+)
 from src.schemas.go_heavier.locations import LocationRequest, LocationResponse
 
 router = APIRouter(prefix="/go-heavier", tags=["locations"])
@@ -29,6 +33,24 @@ async def get_location(location_id: Annotated[str, uuid.UUID]) -> Optional[DBLoc
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
     return location
+
+
+@router.get("/locations/{location_id}/stats", response_model=LocationStatsResponse)
+async def get_location_stats(
+    location_id: Annotated[str, uuid.UUID],
+    request: Annotated[LocationStatsRequest, Query()],
+) -> LocationStatsResponse:
+    try:
+        location_uuid = uuid.UUID(location_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail={"detail": "Invalid format for location id"},
+        )
+    stats = locations.get_location_stats(location_id=location_uuid, request=request)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Location not found")
+    return stats
 
 
 @router.post("/locations", response_model=LocationResponse)

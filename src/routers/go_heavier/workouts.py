@@ -6,6 +6,10 @@ from fastapi import APIRouter, HTTPException, Query, Response
 
 from src.models.go_heavier.workout import Workout as DBWorkout
 from src.resolvers.go_heavier import workouts
+from src.schemas.go_heavier.workout_stats import (
+    WorkoutStatsRequest,
+    WorkoutStatsResponse,
+)
 from src.schemas.go_heavier.workouts import (
     CreateWorkoutsRequest,
     ListWorkoutsRequest,
@@ -16,6 +20,14 @@ from src.schemas.go_heavier.workouts import (
 router = APIRouter(prefix="/go-heavier", tags=["workouts"])
 
 
+@router.get("/workouts/stats", response_model=WorkoutStatsResponse)
+async def get_workout_stats(
+    request: Annotated[WorkoutStatsRequest, Query()],
+) -> WorkoutStatsResponse:
+    return workouts.get_workout_stats(request=request)
+
+
+# Declared after /workouts/stats so that "stats" is not read as a workout id
 @router.get("/workouts/{workout_id}", response_model=WorkoutResponse)
 async def get_workout(workout_id: str) -> Optional[DBWorkout]:
     try:

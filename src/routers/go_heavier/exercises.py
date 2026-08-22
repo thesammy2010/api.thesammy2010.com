@@ -2,10 +2,14 @@ import logging
 import uuid
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from src.models.go_heavier.exercise import Exercise as DBExercise
 from src.resolvers.go_heavier import exercises
+from src.schemas.go_heavier.exercise_stats import (
+    ExerciseStatsRequest,
+    ExerciseStatsResponse,
+)
 from src.schemas.go_heavier.exercises import ExerciseRequest, ExerciseResponse
 
 router = APIRouter(prefix="/go-heavier", tags=["exercises"])
@@ -29,6 +33,24 @@ async def get_exercise(exercise_id: Annotated[str, uuid.UUID]) -> Optional[DBExe
     if not exercise:
         raise HTTPException(status_code=404, detail="Exercise not found")
     return exercise
+
+
+@router.get("/exercises/{exercise_id}/stats", response_model=ExerciseStatsResponse)
+async def get_exercise_stats(
+    exercise_id: Annotated[str, uuid.UUID],
+    request: Annotated[ExerciseStatsRequest, Query()],
+) -> ExerciseStatsResponse:
+    try:
+        exercise_uuid = uuid.UUID(exercise_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail={"detail": "Invalid format for exercise id"},
+        )
+    stats = exercises.get_exercise_stats(exercise_id=exercise_uuid, request=request)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    return stats
 
 
 @router.post("/exercises", response_model=ExerciseResponse)
