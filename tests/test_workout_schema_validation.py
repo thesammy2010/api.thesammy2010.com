@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from src.schemas.go_heavier.workouts import WorkoutResponse, _BaseWorkout
 
@@ -297,8 +298,8 @@ class TestBaseWorkoutValidation:
 class TestValidationErrors:
     """Test that proper validation errors are raised for invalid data."""
 
-    def test_invalid_weight_kg_raises_error(self):
-        """Test that invalid weight_kg values raise validation errors."""
+    def test_out_of_range_weight_kg_raises_error(self):
+        """A negative weight is an assisted exercise; only the outer bound is invalid."""
         with pytest.raises(Exception):  # Pydantic ValidationError
             WorkoutResponse(
                 id=uuid4(),
@@ -307,7 +308,7 @@ class TestValidationErrors:
                 workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
                 index=1,
                 repetitions=10,
-                weight_kg=-5.0,  # Invalid: must be > 0
+                weight_kg=-1000.0,  # Invalid: must be > -1000
                 bar_weight_kg=20.0,
                 supplementary_weight_kg=5.0,
                 created_at=datetime(2026, 6, 3, 0, 47, 31, tzinfo=timezone.utc),
@@ -364,3 +365,54 @@ class TestValidationErrors:
                 created_at=datetime(2026, 6, 3, 0, 47, 31, tzinfo=timezone.utc),
                 updated_at=datetime(2026, 6, 3, 0, 47, 31, tzinfo=timezone.utc),
             )
+
+
+class TestAssistedWeights:
+    """Test the weights of an assisted exercise, where the machine takes load off."""
+
+    @staticmethod
+    def _workout(**overrides) -> _BaseWorkout:
+        payload = {
+            "location_id": uuid4(),
+            "exercise_id": uuid4(),
+            "workout_time": datetime(2026, 8, 7, 14, 30, tzinfo=timezone.utc),
+            "index": 1,
+            "repetitions": 10,
+            "weight_kg": 50.0,
+        }
+        payload.update(overrides)
+        return _BaseWorkout(**payload)
+
+    @pytest.mark.parametrize("weight_kg", [-59.0, -14.0, -0.5])
+    def test_negative_weight_is_accepted(self, weight_kg: float):
+        """An assisted pull up is logged as the weight the machine takes off."""
+        assert self._workout(weight_kg=weight_kg).weight_kg == weight_kg
+
+    def test_negative_supplementary_weight_is_accepted(self):
+        assert self._workout(supplementary_weight_kg=-5.0).supplementary_weight_kg == (
+            -5.0
+        )
+
+    @pytest.mark.parametrize("weight_kg", [-1000.0, 1000.0])
+    def test_the_outer_bounds_are_still_enforced(self, weight_kg: float):
+        with pytest.raises(ValidationError):
+            self._workout(weight_kg=weight_kg)
+
+    def test_a_bar_cannot_weigh_less_than_nothing(self):
+        """Only the lifted and supplementary weights can assist."""
+        with pytest.raises(ValidationError):
+            self._workout(bar_weight_kg=-5.0)
+
+
+class TestSetIndex:
+    """Test the index of a set within a session."""
+
+    @pytest.mark.parametrize("index", [1, 12, 99])
+    def test_long_sessions_are_accepted(self, index: int):
+        """Sessions of more than nine sets of one exercise do occur."""
+        assert TestAssistedWeights._workout(index=index).index == index
+
+    @pytest.mark.parametrize("index", [0, -1, 100])
+    def test_the_bounds_are_still_enforced(self, index: int):
+        with pytest.raises(ValidationError):
+            TestAssistedWeights._workout(index=index)
