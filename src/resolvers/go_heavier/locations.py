@@ -8,6 +8,7 @@ from sqlalchemy import desc, distinct, func
 from src.db import session
 from src.models.go_heavier.exercise import Exercise as DBExercise
 from src.models.go_heavier.location import Location as DBLocation
+from src.models.go_heavier.session import Session as DBSession
 from src.models.go_heavier.workout import Workout as DBWorkout
 from src.schemas.go_heavier.location_stats import (
     ExerciseStats,
@@ -82,11 +83,11 @@ def get_location_stats(
     if not location:
         return None
 
-    conditions = [DBWorkout.location_id == location_id]
+    conditions = [DBSession.location_id == location_id]
     if request.after:
-        conditions.append(DBWorkout.workout_time >= request.after)
+        conditions.append(DBSession.workout_time >= request.after)
     if request.before:
-        conditions.append(DBWorkout.workout_time <= request.before)
+        conditions.append(DBSession.workout_time <= request.before)
 
     volume = func.sum(DBWorkout.weight_kg * DBWorkout.repetitions)
     (
@@ -100,15 +101,16 @@ def get_location_stats(
         distinct_exercises,
     ) = (
         session.query(
-            func.count(distinct(DBWorkout.workout_time)),
+            func.count(distinct(DBWorkout.session_id)),
             func.count(DBWorkout.id),
             func.sum(DBWorkout.repetitions),
             volume,
             func.max(DBWorkout.weight_kg),
-            func.min(DBWorkout.workout_time),
-            func.max(DBWorkout.workout_time),
+            func.min(DBSession.workout_time),
+            func.max(DBSession.workout_time),
             func.count(distinct(DBWorkout.exercise_id)),
         )
+        .join(DBSession, DBSession.id == DBWorkout.session_id)
         .filter(*conditions)
         .one()
     )
@@ -117,8 +119,9 @@ def get_location_stats(
     # distinct exercise count spans every visit, so it cannot be divided down.
     exercises_per_visit = (
         session.query(func.count(distinct(DBWorkout.exercise_id)).label("exercises"))
+        .join(DBSession, DBSession.id == DBWorkout.session_id)
         .filter(*conditions)
-        .group_by(DBWorkout.workout_time)
+        .group_by(DBWorkout.session_id)
         .subquery()
     )
     average_exercises_per_visit = session.query(
@@ -129,11 +132,12 @@ def get_location_stats(
         session.query(
             DBWorkout.exercise_id,
             DBExercise.name,
-            func.count(distinct(DBWorkout.workout_time)).label("visits"),
+            func.count(distinct(DBWorkout.session_id)).label("visits"),
             func.count(DBWorkout.id).label("sets"),
             func.sum(DBWorkout.repetitions).label("repetitions"),
             volume.label("volume_kg"),
         )
+        .join(DBSession, DBSession.id == DBWorkout.session_id)
         .join(DBExercise, DBExercise.id == DBWorkout.exercise_id)
         .filter(*conditions)
         .group_by(DBWorkout.exercise_id, DBExercise.name)

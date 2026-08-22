@@ -128,9 +128,12 @@ that `stats` is not matched as a workout id.
 
 ### Sessions
 
-A session is every set sharing one `workout_time`, which until now was only
-implicit in the data. `GET /go-heavier/sessions` lists them most recent first,
-and `GET /go-heavier/sessions/{workout_time}` returns one with a per exercise
+A session is one visit to a gym, and owns every set performed while there. It is
+a table of its own: `workouts` carries a `session_id`, and the location and the
+time live on the session rather than being repeated on all of its sets.
+
+`GET /go-heavier/sessions` lists them most recent first, and
+`GET /go-heavier/sessions/{session_id}` returns one with a per exercise
 breakdown, ordered by the set each exercise started on.
 
 ```bash
@@ -139,7 +142,7 @@ curl "localhost:8000/go-heavier/sessions" | jq
 # sessions that included one exercise, though the totals still cover the whole session
 curl "localhost:8000/go-heavier/sessions?exercise_id=$EXERCISE_ID" | jq
 
-curl "localhost:8000/go-heavier/sessions/2026-08-20T21:20:00Z" | jq
+curl "localhost:8000/go-heavier/sessions/$SESSION_ID" | jq
 ```
 
 | query param | default | description |
@@ -149,14 +152,18 @@ curl "localhost:8000/go-heavier/sessions/2026-08-20T21:20:00Z" | jq
 | `after` / `before` | none | inclusive `workout_time` bounds |
 | `page` | `1` | pages of `DEFAULT_DB_PAGE_SIZE` sessions |
 
-The path parameter is the session's `workout_time` in ISO 8601, exactly as the
-listing returns it. A time with no offset is read as UTC.
+The sheet has no session id, so one is derived from the location and the time
+with a `uuid5`. That keeps it identical on every run, which is what lets the
+sheet load merge onto the existing sessions instead of inserting duplicates.
+Correcting a session's time in the sheet therefore produces a new id, leaving
+the old session behind to be cleaned up.
 
 ### Loading data from the Google Sheet
 
 `POST /go-heavier/migrations` runs the same load the data migrations run, upserting
 rows from the Google Sheet into the database. Tables are always migrated in
-dependency order (locations, exercises, then workouts) regardless of the order given.
+dependency order (locations, exercises, sessions, then workouts) regardless of
+the order given.
 
 ```bash
 # everything
@@ -176,7 +183,7 @@ curl -X POST localhost:8000/go-heavier/migrations \
 
 | field | default | description |
 | --- | --- | --- |
-| `tables` | all | any of `locations`, `exercises`, `workouts` |
+| `tables` | all | any of `locations`, `exercises`, `sessions`, `workouts` |
 | `dry_run` | `false` | parse the sheet but write nothing |
 | `workouts_after` / `workouts_before` | none | inclusive `workout_time` bounds |
 | `workouts_row_start` / `workouts_row_end` | whole sheet | sheet row bounds, as used by the data migrations |

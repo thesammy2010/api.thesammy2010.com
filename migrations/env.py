@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 from src.models import metadata
 from src.models.go_heavier import Exercise  # noqa: F401
 from src.models.go_heavier import Location  # noqa: F401
+from src.models.go_heavier import Session  # noqa: F401
 from src.models.go_heavier import Workout  # noqa: F401
 from src.models.user import User  # noqa: F401
 

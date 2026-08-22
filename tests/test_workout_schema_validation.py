@@ -14,9 +14,8 @@ class TestFloatValidation:
         """Test that NaN values are converted to None for optional float fields."""
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -33,9 +32,8 @@ class TestFloatValidation:
         """Test that 0.0 values are converted to None for optional float fields."""
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -52,9 +50,8 @@ class TestFloatValidation:
         """Test that valid positive float values are preserved."""
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -71,9 +68,8 @@ class TestFloatValidation:
         """Test that explicit None values are preserved."""
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -92,9 +88,8 @@ class TestFloatValidation:
         # Test valid values within boundaries
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -111,9 +106,8 @@ class TestFloatValidation:
         """Test that 0.0 weight_kg is allowed and preserved."""
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=1,
             repetitions=10,
             weight_kg=0.0,  # Should be allowed
@@ -133,9 +127,8 @@ class TestDatetimeValidation:
         """Test that naive datetimes are converted to timezone-aware (UTC)."""
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0),  # Naive datetime
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -145,21 +138,18 @@ class TestDatetimeValidation:
             updated_at=datetime(2026, 6, 3, 0, 47, 31, 171989),  # Naive datetime
         )
 
-        assert workout.workout_time.tzinfo == timezone.utc
         assert workout.created_at.tzinfo == timezone.utc
         assert workout.updated_at.tzinfo == timezone.utc
 
     def test_aware_datetimes_preserved(self):
         """Test that timezone-aware datetimes are preserved."""
-        workout_time = datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc)
         created_at = datetime(2026, 6, 3, 0, 47, 31, tzinfo=timezone.utc)
         updated_at = datetime(2026, 6, 3, 0, 47, 31, tzinfo=timezone.utc)
 
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=workout_time,
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -169,7 +159,6 @@ class TestDatetimeValidation:
             updated_at=updated_at,
         )
 
-        assert workout.workout_time == workout_time
         assert workout.created_at == created_at
         assert workout.updated_at == updated_at
 
@@ -177,9 +166,8 @@ class TestDatetimeValidation:
         """Test that updated_at can be None (it's optional)."""
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -199,9 +187,8 @@ class TestCombinedValidation:
         """Test handling of all edge cases in a single workout record."""
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0),  # Naive datetime
             index=1,
             repetitions=10,
             weight_kg=0.0,  # 0.0 is allowed and preserved
@@ -220,7 +207,6 @@ class TestCombinedValidation:
         assert workout.supplementary_weight_kg is None
 
         # Datetime conversions
-        assert workout.workout_time.tzinfo == timezone.utc
         assert workout.created_at.tzinfo == timezone.utc
         assert workout.updated_at is None
 
@@ -232,9 +218,8 @@ class TestCombinedValidation:
         # Simulating what SQLAlchemy might return from the database
         workout = WorkoutResponse(
             id=uuid4(),
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0),  # DB returns naive
             index=1,
             repetitions=10,
             weight_kg=0.0,  # 0.0 in DB is preserved
@@ -249,7 +234,6 @@ class TestCombinedValidation:
         assert workout.weight_kg == 0.0  # Preserved from DB
         assert workout.bar_weight_kg is None
         assert workout.supplementary_weight_kg is None
-        assert workout.workout_time.tzinfo == timezone.utc
         assert workout.created_at.tzinfo == timezone.utc
         assert workout.updated_at.tzinfo == timezone.utc
 
@@ -260,9 +244,8 @@ class TestBaseWorkoutValidation:
     def test_base_workout_float_validation(self):
         """Test that float validation works in the base workout model."""
         workout = _BaseWorkout(
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=1,
             repetitions=10,
             weight_kg=50.0,
@@ -276,9 +259,8 @@ class TestBaseWorkoutValidation:
     def test_base_workout_valid_values(self):
         """Test that valid values work in the base workout model."""
         workout = _BaseWorkout(
-            location_id=uuid4(),
+            session_id=uuid4(),
             exercise_id=uuid4(),
-            workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
             index=5,
             repetitions=15,
             weight_kg=75.5,
@@ -303,9 +285,8 @@ class TestValidationErrors:
         with pytest.raises(Exception):  # Pydantic ValidationError
             WorkoutResponse(
                 id=uuid4(),
-                location_id=uuid4(),
+                session_id=uuid4(),
                 exercise_id=uuid4(),
-                workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
                 index=1,
                 repetitions=10,
                 weight_kg=-1000.0,  # Invalid: must be > -1000
@@ -320,9 +301,8 @@ class TestValidationErrors:
         with pytest.raises(Exception):  # Pydantic ValidationError
             WorkoutResponse(
                 id=uuid4(),
-                location_id=uuid4(),
+                session_id=uuid4(),
                 exercise_id=uuid4(),
-                workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
                 index=1,
                 repetitions=10,
                 weight_kg=50.0,
@@ -337,9 +317,8 @@ class TestValidationErrors:
         with pytest.raises(Exception):  # Pydantic ValidationError
             WorkoutResponse(
                 id=uuid4(),
-                location_id=uuid4(),
+                session_id=uuid4(),
                 exercise_id=uuid4(),
-                workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
                 index=0,  # Invalid: must be > 0
                 repetitions=10,
                 weight_kg=50.0,
@@ -354,9 +333,8 @@ class TestValidationErrors:
         with pytest.raises(Exception):  # Pydantic ValidationError
             WorkoutResponse(
                 id=uuid4(),
-                location_id=uuid4(),
+                session_id=uuid4(),
                 exercise_id=uuid4(),
-                workout_time=datetime(2026, 6, 3, 10, 0, 0, tzinfo=timezone.utc),
                 index=1,
                 repetitions=150,  # Invalid: must be < 100
                 weight_kg=50.0,
@@ -373,9 +351,8 @@ class TestAssistedWeights:
     @staticmethod
     def _workout(**overrides) -> _BaseWorkout:
         payload = {
-            "location_id": uuid4(),
+            "session_id": uuid4(),
             "exercise_id": uuid4(),
-            "workout_time": datetime(2026, 8, 7, 14, 30, tzinfo=timezone.utc),
             "index": 1,
             "repetitions": 10,
             "weight_kg": 50.0,

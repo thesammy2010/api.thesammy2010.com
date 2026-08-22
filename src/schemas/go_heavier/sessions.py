@@ -42,9 +42,8 @@ class ListSessionsRequest(PaginationParams):
 class _BaseSession(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    workout_time: AwareDatetime = Field(
-        description="When the session took place, the key identifying it"
-    )
+    id: UUID = Field(description="Unique identifier for the session")
+    workout_time: AwareDatetime = Field(description="When the session took place")
     location_id: UUID = Field(description="Unique identifier for the location")
     location: str = Field(description="Name of the location")
     sets: int = Field(description="Number of sets logged in the session")

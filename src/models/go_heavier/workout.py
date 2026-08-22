@@ -2,7 +2,6 @@ import datetime
 import uuid
 from typing import Optional
 
-import pendulum
 from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.schema import ForeignKey
@@ -16,15 +15,11 @@ class Workout(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, server_default=func.gen_random_uuid(), nullable=False
     )
-    location_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("locations.id"), nullable=False
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sessions.id"), nullable=False
     )
     exercise_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("exercises.id"), nullable=False
-    )
-    exercise_index: Mapped[int] = mapped_column(nullable=True)
-    workout_time: Mapped[pendulum.DateTime] = mapped_column(
-        DateTime(timezone=True), nullable=False
     )
     index: Mapped[int] = mapped_column(nullable=False)
     repetitions: Mapped[int] = mapped_column(nullable=False)

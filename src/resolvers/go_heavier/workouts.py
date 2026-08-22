@@ -7,6 +7,7 @@ from src.config import Config
 from src.db import session
 from src.models.go_heavier import Exercise as DBExercise
 from src.models.go_heavier import Location as DBLocation
+from src.models.go_heavier import Session as DBSession
 from src.models.go_heavier import Workout as DBWorkout
 from src.schemas.go_heavier.workout_stats import (
     ExerciseBreakdown,
@@ -27,19 +28,22 @@ def get_workout(workout_id: uuid.UUID) -> Optional[DBWorkout]:
 
 def get_workouts(request: ListWorkoutsRequest) -> List[DBWorkout]:
     conditions = []
-    if request.location_id:
-        conditions.append(DBWorkout.location_id == request.location_id)
+    if request.session_id:
+        conditions.append(DBWorkout.session_id == request.session_id)
     if request.exercise_id:
         conditions.append(DBWorkout.exercise_id == request.exercise_id)
+    if request.location_id:
+        conditions.append(DBSession.location_id == request.location_id)
     if request.after:
-        conditions.append(DBWorkout.workout_time >= request.after)
+        conditions.append(DBSession.workout_time >= request.after)
     if request.before:
-        conditions.append(DBWorkout.workout_time <= request.before)
+        conditions.append(DBSession.workout_time <= request.before)
 
     query = (
         session.query(DBWorkout)
+        .join(DBSession, DBSession.id == DBWorkout.session_id)
         .where(*conditions)
-        .order_by(DBWorkout.workout_time, DBWorkout.exercise_id, DBWorkout.index)
+        .order_by(DBSession.workout_time, DBWorkout.exercise_id, DBWorkout.index)
         .limit(Config.DEFAULT_DB_PAGE_SIZE)
     )
 
@@ -54,9 +58,8 @@ def create_workouts(workouts: CreateWorkoutsRequest) -> List[DBWorkout]:
     for workout in workouts.workouts:
         new_workouts.append(
             DBWorkout(
-                location_id=workout.location_id,  # relationship handled by db
+                session_id=workout.session_id,  # relationship handled by db
                 exercise_id=workout.exercise_id,  # relationship handled by db
-                workout_time=workout.workout_time,
                 index=workout.index,
                 repetitions=workout.repetitions,
                 weight_kg=workout.weight_kg,
@@ -104,13 +107,13 @@ def get_workout_stats(request: WorkoutStatsRequest) -> WorkoutStatsResponse:
     """
     conditions = []
     if request.location_id:
-        conditions.append(DBWorkout.location_id == request.location_id)
+        conditions.append(DBSession.location_id == request.location_id)
     if request.exercise_id:
         conditions.append(DBWorkout.exercise_id == request.exercise_id)
     if request.after:
-        conditions.append(DBWorkout.workout_time >= request.after)
+        conditions.append(DBSession.workout_time >= request.after)
     if request.before:
-        conditions.append(DBWorkout.workout_time <= request.before)
+        conditions.append(DBSession.workout_time <= request.before)
 
     volume = func.sum(DBWorkout.weight_kg * DBWorkout.repetitions)
     (
@@ -125,16 +128,17 @@ def get_workout_stats(request: WorkoutStatsRequest) -> WorkoutStatsResponse:
         distinct_exercises,
     ) = (
         session.query(
-            func.count(distinct(DBWorkout.workout_time)),
+            func.count(distinct(DBWorkout.session_id)),
             func.count(DBWorkout.id),
             func.sum(DBWorkout.repetitions),
             volume,
             func.max(DBWorkout.weight_kg),
-            func.min(DBWorkout.workout_time),
-            func.max(DBWorkout.workout_time),
-            func.count(distinct(DBWorkout.location_id)),
+            func.min(DBSession.workout_time),
+            func.max(DBSession.workout_time),
+            func.count(distinct(DBSession.location_id)),
             func.count(distinct(DBWorkout.exercise_id)),
         )
+        .join(DBSession, DBSession.id == DBWorkout.session_id)
         .filter(*conditions)
         .one()
     )
@@ -143,8 +147,9 @@ def get_workout_stats(request: WorkoutStatsRequest) -> WorkoutStatsResponse:
     # exercise count spans every session, so it cannot be divided down.
     exercises_per_session = (
         session.query(func.count(distinct(DBWorkout.exercise_id)).label("exercises"))
+        .join(DBSession, DBSession.id == DBWorkout.session_id)
         .filter(*conditions)
-        .group_by(DBWorkout.workout_time)
+        .group_by(DBWorkout.session_id)
         .subquery()
     )
     average_exercises_per_session = session.query(
@@ -153,16 +158,17 @@ def get_workout_stats(request: WorkoutStatsRequest) -> WorkoutStatsResponse:
 
     top_locations = (
         session.query(
-            DBWorkout.location_id,
+            DBSession.location_id,
             DBLocation.name,
-            func.count(distinct(DBWorkout.workout_time)).label("sessions"),
+            func.count(distinct(DBWorkout.session_id)).label("sessions"),
             func.count(DBWorkout.id).label("sets"),
             func.sum(DBWorkout.repetitions).label("repetitions"),
             volume.label("volume_kg"),
         )
-        .join(DBLocation, DBLocation.id == DBWorkout.location_id)
+        .join(DBSession, DBSession.id == DBWorkout.session_id)
+        .join(DBLocation, DBLocation.id == DBSession.location_id)
         .filter(*conditions)
-        .group_by(DBWorkout.location_id, DBLocation.name)
+        .group_by(DBSession.location_id, DBLocation.name)
         .order_by(desc("sets"), DBLocation.name)
         .limit(request.top_locations)
         .all()
@@ -172,11 +178,12 @@ def get_workout_stats(request: WorkoutStatsRequest) -> WorkoutStatsResponse:
         session.query(
             DBWorkout.exercise_id,
             DBExercise.name,
-            func.count(distinct(DBWorkout.workout_time)).label("sessions"),
+            func.count(distinct(DBWorkout.session_id)).label("sessions"),
             func.count(DBWorkout.id).label("sets"),
             func.sum(DBWorkout.repetitions).label("repetitions"),
             volume.label("volume_kg"),
         )
+        .join(DBSession, DBSession.id == DBWorkout.session_id)
         .join(DBExercise, DBExercise.id == DBWorkout.exercise_id)
         .filter(*conditions)
         .group_by(DBWorkout.exercise_id, DBExercise.name)

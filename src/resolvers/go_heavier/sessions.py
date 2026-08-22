@@ -1,4 +1,4 @@
-import datetime
+import uuid
 from typing import List, Optional
 
 from sqlalchemy import distinct, func, select
@@ -7,6 +7,7 @@ from src.config import Config
 from src.db import session
 from src.models.go_heavier import Exercise as DBExercise
 from src.models.go_heavier import Location as DBLocation
+from src.models.go_heavier import Session as DBSession
 from src.models.go_heavier import Workout as DBWorkout
 from src.schemas.go_heavier.sessions import (
     ListSessionsRequest,
@@ -15,11 +16,11 @@ from src.schemas.go_heavier.sessions import (
     SessionSummary,
 )
 
-# A session is every set sharing one workout_time, so the summary of one is a
-# group by over that column. Each session has a single location.
+# A session owns its sets, so the totals are an aggregate over the join.
 _SUMMARY_COLUMNS = (
-    DBWorkout.workout_time,
-    DBWorkout.location_id,
+    DBSession.id,
+    DBSession.workout_time,
+    DBSession.location_id,
     DBLocation.name.label("location"),
     func.count(DBWorkout.id).label("sets"),
     func.count(distinct(DBWorkout.exercise_id)).label("exercises"),
@@ -27,10 +28,26 @@ _SUMMARY_COLUMNS = (
     func.sum(DBWorkout.weight_kg * DBWorkout.repetitions).label("volume_kg"),
     func.max(DBWorkout.weight_kg).label("heaviest_weight_kg"),
 )
+_GROUP_BY = (
+    DBSession.id,
+    DBSession.workout_time,
+    DBSession.location_id,
+    DBLocation.name,
+)
+
+
+def _summary_query():
+    return (
+        session.query(*_SUMMARY_COLUMNS)
+        .join(DBLocation, DBLocation.id == DBSession.location_id)
+        .join(DBWorkout, DBWorkout.session_id == DBSession.id)
+        .group_by(*_GROUP_BY)
+    )
 
 
 def _to_summary(row) -> SessionSummary:
     return SessionSummary(
+        id=row.id,
         workout_time=row.workout_time,
         location_id=row.location_id,
         location=row.location,
@@ -46,28 +63,26 @@ def get_sessions(request: ListSessionsRequest) -> List[SessionSummary]:
     """List sessions, most recent first."""
     conditions = []
     if request.location_id:
-        conditions.append(DBWorkout.location_id == request.location_id)
+        conditions.append(DBSession.location_id == request.location_id)
     if request.exercise_id:
         # Select the sessions that included the exercise, but still total up
         # every set in them rather than only that exercise's sets.
         conditions.append(
-            DBWorkout.workout_time.in_(
-                select(DBWorkout.workout_time).filter(
+            DBSession.id.in_(
+                select(DBWorkout.session_id).filter(
                     DBWorkout.exercise_id == request.exercise_id
                 )
             )
         )
     if request.after:
-        conditions.append(DBWorkout.workout_time >= request.after)
+        conditions.append(DBSession.workout_time >= request.after)
     if request.before:
-        conditions.append(DBWorkout.workout_time <= request.before)
+        conditions.append(DBSession.workout_time <= request.before)
 
     rows = (
-        session.query(*_SUMMARY_COLUMNS)
-        .join(DBLocation, DBLocation.id == DBWorkout.location_id)
+        _summary_query()
         .filter(*conditions)
-        .group_by(DBWorkout.workout_time, DBWorkout.location_id, DBLocation.name)
-        .order_by(DBWorkout.workout_time.desc())
+        .order_by(DBSession.workout_time.desc())
         .limit(Config.DEFAULT_DB_PAGE_SIZE)
         .offset(request.offset)
         .all()
@@ -76,15 +91,9 @@ def get_sessions(request: ListSessionsRequest) -> List[SessionSummary]:
     return [_to_summary(row) for row in rows]
 
 
-def get_session(workout_time: datetime.datetime) -> Optional[SessionResponse]:
+def get_session(session_id: uuid.UUID) -> Optional[SessionResponse]:
     """Return one session with its per exercise breakdown."""
-    summary = (
-        session.query(*_SUMMARY_COLUMNS)
-        .join(DBLocation, DBLocation.id == DBWorkout.location_id)
-        .filter(DBWorkout.workout_time == workout_time)
-        .group_by(DBWorkout.workout_time, DBWorkout.location_id, DBLocation.name)
-        .first()
-    )
+    summary = _summary_query().filter(DBSession.id == session_id).first()
     if not summary:
         return None
 
@@ -99,7 +108,7 @@ def get_session(workout_time: datetime.datetime) -> Optional[SessionResponse]:
             func.min(DBWorkout.index).label("first_set"),
         )
         .join(DBExercise, DBExercise.id == DBWorkout.exercise_id)
-        .filter(DBWorkout.workout_time == workout_time)
+        .filter(DBWorkout.session_id == session_id)
         .group_by(DBWorkout.exercise_id, DBExercise.name)
         .order_by("first_set", DBExercise.name)
         .all()

@@ -14,6 +14,7 @@ from src.schemas.go_heavier.sessions import (
 
 def _payload(**overrides) -> dict:
     payload = {
+        "id": uuid4(),
         "workout_time": datetime(2026, 8, 20, 21, 20, tzinfo=timezone.utc),
         "location_id": uuid4(),
         "location": "The Gym Greenford",
@@ -42,6 +43,12 @@ class TestSessionSummary:
         workout_time = datetime(2026, 8, 20, 21, 20, tzinfo=timezone.utc)
 
         assert SessionSummary(**_payload()).workout_time == workout_time
+
+    def test_the_session_is_identified_by_its_own_id(self):
+        """The id is stable, unlike the time it was previously keyed on."""
+        session_id = uuid4()
+
+        assert SessionSummary(**_payload(id=session_id)).id == session_id
 
     def test_an_assisted_session_can_be_heaviest_negative(self):
         """A session of only assisted work has a negative heaviest weight."""
