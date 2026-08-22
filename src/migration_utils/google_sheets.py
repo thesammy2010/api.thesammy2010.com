@@ -7,6 +7,10 @@ import pandas
 import pendulum
 
 from src.config import Config
+from src.migration_utils.datetime_parsing import (
+    clean_datetime_string,
+    parse_sheet_datetime,
+)
 from src.models.go_heavier import Exercise, Location, Workout
 
 
@@ -62,8 +66,12 @@ def load_locations_from_sheet(cfg: Config = Config()) -> List[Location]:
     df["address_city"] = df["address_city"].astype(str)
     df["address_postal_code"] = df["address_postal_code"].astype(str)
     df["address_country_iso3"] = df["address_country_iso3"].astype(str)
-    df["created_at"] = pandas.to_datetime(df["created_at"]).replace("", None)
-    df["updated_at"] = pandas.to_datetime(df["updated_at"]).replace("", None)
+    df["created_at"] = pandas.to_datetime(
+        df["created_at"].map(clean_datetime_string)
+    ).replace("", None)
+    df["updated_at"] = pandas.to_datetime(
+        df["updated_at"].map(clean_datetime_string)
+    ).replace("", None)
 
     for row in df.to_dict(orient="records"):
         try:
@@ -86,8 +94,8 @@ def load_exercises_from_sheet(cfg: Config = Config()) -> List[Exercise]:
     df["id"] = df["id"].map(uuid.UUID)
     df["bipedal"] = df["bipedal"].astype(bool)
     df["free_weights"] = df["free_weights"].astype(bool)
-    df["created_at"] = df["created_at"].apply(pendulum.parse)
-    df["updated_at"] = df["updated_at"].apply(pendulum.parse)
+    df["created_at"] = df["created_at"].apply(parse_sheet_datetime)
+    df["updated_at"] = df["updated_at"].apply(parse_sheet_datetime)
 
     for row in df.to_dict(orient="records"):
         try:
@@ -139,7 +147,7 @@ def load_workouts_from_sheet(
     # Parse workout times as UK local time (Europe/London), then convert to UTC
     # This automatically handles British Summer Time (BST) and GMT
     df["workout_time"] = df["workout_time"].apply(
-        lambda x: pendulum.parse(x, tz="Europe/London").in_tz("UTC")
+        lambda x: parse_sheet_datetime(x, tz="Europe/London").in_tz("UTC")
     )
 
     df = df.iloc[range_start : None if range_end is None else max(range_end - 1, 0)]
