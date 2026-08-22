@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from typing import List, Optional
 
@@ -5,6 +6,7 @@ from sqlalchemy import distinct, func, select
 
 from src.config import Config
 from src.db import session
+from src.migration_utils.session_ids import session_id_for
 from src.models.go_heavier import Exercise as DBExercise
 from src.models.go_heavier import Location as DBLocation
 from src.models.go_heavier import Session as DBSession
@@ -16,6 +18,7 @@ from src.schemas.go_heavier.session_stats import (
     WeekdayStats,
 )
 from src.schemas.go_heavier.sessions import (
+    CreateSessionRequest,
     ListSessionsRequest,
     SessionExerciseStats,
     SessionResponse,
@@ -46,7 +49,9 @@ def _summary_query():
     return (
         session.query(*_SUMMARY_COLUMNS)
         .join(DBLocation, DBLocation.id == DBSession.location_id)
-        .join(DBWorkout, DBWorkout.session_id == DBSession.id)
+        # Outer, so that a session created before anything is logged against
+        # it still reads back, with totals of zero rather than not at all.
+        .outerjoin(DBWorkout, DBWorkout.session_id == DBSession.id)
         .group_by(*_GROUP_BY)
     )
 
@@ -279,3 +284,53 @@ def _gaps_between(conditions: list) -> dict:
         "average_days_between_sessions": round(sum(gaps) / len(gaps), 2),
         "longest_gap_days": round(max(gaps), 2),
     }
+
+
+class LocationNotFound(LookupError):
+    """Raised when a session is created against a location that does not exist."""
+
+
+class SessionAlreadyExists(ValueError):
+    """Raised when a session has already been logged for that place and time.
+
+    Carries the existing id, since the caller almost certainly wants to log
+    against it rather than create another one.
+    """
+
+    def __init__(self, session_id: uuid.UUID) -> None:
+        self.session_id = session_id
+        super().__init__(f"A session already exists with id {session_id}")
+
+
+def create_session(request: CreateSessionRequest) -> SessionResponse:
+    """Create a session to log sets against.
+
+    The id is derived exactly as the sheet load derives it, so that a session
+    created here and the same visit arriving from the sheet are one row rather
+    than two competing for the unique constraint on the location and the time.
+    """
+    location = (
+        session.query(DBLocation).filter(DBLocation.id == request.location_id).first()
+    )
+    if not location:
+        raise LocationNotFound(f"No location with id {request.location_id}")
+
+    session_id = session_id_for(
+        location_id=request.location_id, workout_time=request.workout_time
+    )
+    if session.query(DBSession).filter(DBSession.id == session_id).first():
+        raise SessionAlreadyExists(session_id)
+
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    session.add(
+        DBSession(
+            id=session_id,
+            location_id=request.location_id,
+            workout_time=request.workout_time,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    session.commit()
+
+    return get_session(session_id=session_id)

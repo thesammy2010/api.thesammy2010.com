@@ -137,6 +137,11 @@ time live on the session rather than being repeated on all of its sets.
 breakdown, ordered by the set each exercise started on.
 
 ```bash
+# create a session, then log sets against it
+curl -X POST localhost:8000/go-heavier/sessions \
+  -H 'Content-Type: application/json' \
+  -d '{"location_id": "'$LOCATION_ID'", "workout_time": "2026-09-01T18:00:00Z"}' | jq
+
 curl "localhost:8000/go-heavier/sessions" | jq
 
 # sessions that included one exercise, though the totals still cover the whole session
@@ -151,6 +156,11 @@ curl "localhost:8000/go-heavier/sessions/$SESSION_ID" | jq
 | `exercise_id` | none | only list sessions that included this exercise |
 | `after` / `before` | none | inclusive `workout_time` bounds |
 | `page` | `1` | pages of `DEFAULT_DB_PAGE_SIZE` sessions |
+
+Creating a session derives its id from the location and the time in exactly
+the way the sheet load does, so the two converge on one row instead of competing
+for the unique constraint over that pair. Creating the same one twice is a `409`
+carrying the existing id.
 
 The sheet has no session id, so one is derived from the location and the time
 with a `uuid5`. That keeps it identical on every run, which is what lets the

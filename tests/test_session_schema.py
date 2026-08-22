@@ -5,11 +5,14 @@ import pytest
 from pydantic import ValidationError
 
 from src.schemas.go_heavier.sessions import (
+    CreateSessionRequest,
     ListSessionsRequest,
     SessionExerciseStats,
     SessionResponse,
     SessionSummary,
 )
+
+LOCATION_ID = uuid4()
 
 
 def _payload(**overrides) -> dict:
@@ -120,3 +123,60 @@ class TestListSessionsRequest:
     def test_malformed_id_filters_are_rejected(self):
         with pytest.raises(ValidationError):
             ListSessionsRequest(exercise_id="not-a-uuid")
+
+
+class TestCreateSessionRequest:
+    """Test the body for creating a session to log sets against."""
+
+    def test_a_location_and_a_time_are_required(self):
+        request = CreateSessionRequest(
+            location_id=LOCATION_ID,
+            workout_time=datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc),
+        )
+
+        assert request.location_id == LOCATION_ID
+
+    @pytest.mark.parametrize("missing", ["location_id", "workout_time"])
+    def test_neither_may_be_omitted(self, missing: str):
+        payload = {
+            "location_id": LOCATION_ID,
+            "workout_time": datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc),
+        }
+        del payload[missing]
+
+        with pytest.raises(ValidationError):
+            CreateSessionRequest(**payload)
+
+    def test_a_naive_time_is_rejected(self):
+        """An offset is required, since the stored time is an instant in UTC."""
+        with pytest.raises(ValidationError):
+            CreateSessionRequest(
+                location_id=LOCATION_ID, workout_time=datetime(2026, 9, 1, 18, 0)
+            )
+
+    def test_a_malformed_location_is_rejected(self):
+        with pytest.raises(ValidationError):
+            CreateSessionRequest(
+                location_id="not-a-uuid",
+                workout_time=datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc),
+            )
+
+
+class TestEmptySession:
+    """Test a session created before anything has been logged against it."""
+
+    def test_it_has_no_heaviest_weight(self):
+        """Nothing has been lifted yet, which is not the same as lifting zero."""
+        summary = SessionSummary(
+            **{
+                **_payload(),
+                "sets": 0,
+                "exercises": 0,
+                "repetitions": 0,
+                "volume_kg": 0.0,
+                "heaviest_weight_kg": None,
+            }
+        )
+
+        assert summary.heaviest_weight_kg is None
+        assert summary.sets == 0

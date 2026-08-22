@@ -1,18 +1,26 @@
+import logging
 import uuid
 from typing import Annotated, List
 
 from fastapi import APIRouter, HTTPException, Query
 
 from src.resolvers.go_heavier import sessions
+from src.resolvers.go_heavier.sessions import (
+    LocationNotFound,
+    SessionAlreadyExists,
+)
 from src.schemas.go_heavier.session_stats import (
     SessionStatsRequest,
     SessionStatsResponse,
 )
 from src.schemas.go_heavier.sessions import (
+    CreateSessionRequest,
     ListSessionsRequest,
     SessionResponse,
     SessionSummary,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/go-heavier", tags=["sessions"])
 
@@ -22,6 +30,22 @@ async def get_sessions(
     request: Annotated[ListSessionsRequest, Query()],
 ) -> List[SessionSummary]:
     return sessions.get_sessions(request=request)
+
+
+@router.post("/sessions", response_model=SessionResponse, status_code=201)
+async def create_session(request: CreateSessionRequest) -> SessionResponse:
+    try:
+        return sessions.create_session(request=request)
+    except LocationNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except SessionAlreadyExists as e:
+        raise HTTPException(
+            status_code=409,
+            detail={"detail": str(e), "session_id": str(e.session_id)},
+        )
+    except Exception as e:
+        logger.error(f"Error creating session: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/sessions/stats", response_model=SessionStatsResponse)
