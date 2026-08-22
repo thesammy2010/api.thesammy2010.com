@@ -8,6 +8,7 @@ from src.routers.go_heavier import (
     exercises,
     locations,
     migrations,
+    sessions,
     workouts,
 )
 
@@ -35,3 +36,4 @@ app.include_router(exercises.router)
 app.include_router(workouts.router)
 app.include_router(config.router)
 app.include_router(migrations.router)
+app.include_router(sessions.router)

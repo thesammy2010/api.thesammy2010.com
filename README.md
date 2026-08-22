@@ -126,6 +126,32 @@ curl "localhost:8000/go-heavier/workouts/stats?location_id=$LOCATION_ID&exercise
 Note that the route is declared before `/workouts/{workout_id}` in the router, so
 that `stats` is not matched as a workout id.
 
+### Sessions
+
+A session is every set sharing one `workout_time`, which until now was only
+implicit in the data. `GET /go-heavier/sessions` lists them most recent first,
+and `GET /go-heavier/sessions/{workout_time}` returns one with a per exercise
+breakdown, ordered by the set each exercise started on.
+
+```bash
+curl "localhost:8000/go-heavier/sessions" | jq
+
+# sessions that included one exercise, though the totals still cover the whole session
+curl "localhost:8000/go-heavier/sessions?exercise_id=$EXERCISE_ID" | jq
+
+curl "localhost:8000/go-heavier/sessions/2026-08-20T21:20:00Z" | jq
+```
+
+| query param | default | description |
+| --- | --- | --- |
+| `location_id` | none | only list sessions at this location |
+| `exercise_id` | none | only list sessions that included this exercise |
+| `after` / `before` | none | inclusive `workout_time` bounds |
+| `page` | `1` | pages of `DEFAULT_DB_PAGE_SIZE` sessions |
+
+The path parameter is the session's `workout_time` in ISO 8601, exactly as the
+listing returns it. A time with no offset is read as UTC.
+
 ### Loading data from the Google Sheet
 
 `POST /go-heavier/migrations` runs the same load the data migrations run, upserting

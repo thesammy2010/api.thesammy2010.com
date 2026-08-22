@@ -11,6 +11,11 @@ from src.migration_utils.datetime_parsing import (
     clean_datetime_string,
     parse_sheet_datetime,
 )
+from src.migration_utils.sheet_frames import (
+    drop_incomplete_workouts,
+    drop_unmapped_columns,
+    to_frame,
+)
 from src.models.go_heavier import Exercise, Location, Workout
 
 
@@ -56,7 +61,7 @@ def load_locations_from_sheet(cfg: Config = Config()) -> List[Location]:
     locations_sheet = get_locations(cfg=cfg)
     locations: List[Location] = []
     data = locations_sheet.get_all_values()
-    df = pandas.DataFrame(data[1:], columns=data[0])
+    df = to_frame(data)
 
     df["id"] = df["id"].map(uuid.UUID)
     df["name"] = df["name"].astype(str)
@@ -73,7 +78,7 @@ def load_locations_from_sheet(cfg: Config = Config()) -> List[Location]:
         df["updated_at"].map(clean_datetime_string)
     ).replace("", None)
 
-    for row in df.to_dict(orient="records"):
+    for row in drop_unmapped_columns(df, Location).to_dict(orient="records"):
         try:
             location = Location(**row)
         except Exception as e:
@@ -89,7 +94,7 @@ def load_exercises_from_sheet(cfg: Config = Config()) -> List[Exercise]:
     exercises: List[Exercise] = []
     data = exercises_sheet.get_all_values()
 
-    df = pandas.DataFrame(data[1:], columns=data[0])
+    df = to_frame(data)
 
     df["id"] = df["id"].map(uuid.UUID)
     df["bipedal"] = df["bipedal"].astype(bool)
@@ -97,7 +102,7 @@ def load_exercises_from_sheet(cfg: Config = Config()) -> List[Exercise]:
     df["created_at"] = df["created_at"].apply(parse_sheet_datetime)
     df["updated_at"] = df["updated_at"].apply(parse_sheet_datetime)
 
-    for row in df.to_dict(orient="records"):
+    for row in drop_unmapped_columns(df, Exercise).to_dict(orient="records"):
         try:
             exercise = Exercise(**row)
         except Exception as e:
@@ -130,8 +135,7 @@ def load_workouts_from_sheet(
     workouts: List[Workout] = []
     data = workouts_sheet.get_all_values()
 
-    df = pandas.DataFrame(data[1:], columns=data[0])
-    df = df.replace("", None)
+    df = to_frame(data, blanks_as_none=True)
     df["location"] = df["location"].map(locations_mapping)
     df["exercise"] = df["exercise"].map(exercise_mapping)
 
@@ -155,7 +159,7 @@ def load_workouts_from_sheet(
         df = df[df["workout_time"] >= after]
     if before is not None:
         df = df[df["workout_time"] <= before]
-    df = df.copy()
+    df = drop_incomplete_workouts(df.copy())
 
     df["index"] = df["index"].astype(int)
     df["weight_kg"] = df["weight_kg"].astype(float)
@@ -175,6 +179,7 @@ def load_workouts_from_sheet(
     df["updated_at"] = pendulum.now("UTC")
 
     df = df.rename({"location": "location_id", "exercise": "exercise_id"}, axis=1)
+    df = drop_unmapped_columns(df, Workout)
 
     for row in df.to_dict(orient="records"):
         try:

@@ -28,7 +28,7 @@ class _BaseWorkout(BaseModel):
         description="The index of the set within the workout session",
         nullable=False,
         gt=0,
-        lt=10,
+        lt=100,
     )
     repetitions: int = Field(
         description="The number of times the workout action was repeated",
@@ -37,9 +37,10 @@ class _BaseWorkout(BaseModel):
         lt=100,
     )
     weight_kg: float = Field(
-        description="The weight used during the workout in kilograms",
+        description="The weight used during the workout in kilograms. Negative "
+        "for an assisted exercise, where the machine takes weight off the lifter",
         nullable=False,
-        ge=0.0,
+        gt=-1000.0,
         lt=1000.0,
     )
     bar_weight_kg: Optional[float] = Field(
@@ -50,9 +51,10 @@ class _BaseWorkout(BaseModel):
         default=None,
     )
     supplementary_weight_kg: Optional[float] = Field(
-        description="The supplementary weight added to the bar during the workout in kilograms",
+        description="The supplementary weight added to the bar during the workout "
+        "in kilograms. Negative when it assists rather than loads the lifter",
         nullable=True,
-        gt=0.0,
+        gt=-100.0,
         lt=100.0,
         default=None,
     )
