@@ -158,6 +158,31 @@ sheet load merge onto the existing sessions instead of inserting duplicates.
 Correcting a session's time in the sheet therefore produces a new id, leaving
 the old session behind to be cleaned up.
 
+### Session stats
+
+`GET /go-heavier/sessions/stats` aggregates across sessions, where
+`/sessions/{session_id}` aggregates within one. Averages are taken per session
+rather than per set, so they answer what a typical visit looks like.
+
+```bash
+curl "localhost:8000/go-heavier/sessions/stats" | jq
+
+curl "localhost:8000/go-heavier/sessions/stats?location_id=$LOCATION_ID&after=2026-01-01T00:00:00Z" | jq
+```
+
+| query param | default | description |
+| --- | --- | --- |
+| `location_id` | none | only count sessions at this location |
+| `exercise_id` | none | only count sessions that included this exercise |
+| `after` / `before` | none | inclusive `workout_time` bounds |
+
+`average_days_between_sessions` and `longest_gap_days` are null rather than zero
+when there are fewer than two sessions to measure between. `by_weekday` is in UK
+local time, Monday first, and omits days with no sessions.
+
+Note that the route is declared before `/sessions/{session_id}` in the router, so
+that `stats` is not matched as a session id.
+
 ### Loading data from the Google Sheet
 
 `POST /go-heavier/migrations` runs the same load the data migrations run, upserting
