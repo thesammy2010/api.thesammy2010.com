@@ -164,7 +164,10 @@ def _workout_frame(
         for location, workout_time in zip(df["location"], df["workout_time"])
     ]
 
-    return df
+    # Named for the model rather than the sheet. Without this the column is
+    # dropped as unmapped and the attribute is never set, which merge() would
+    # quietly leave at whatever the database already held.
+    return df.rename({"exercise": "exercise_id"}, axis=1)
 
 
 def load_sessions_from_sheet(
