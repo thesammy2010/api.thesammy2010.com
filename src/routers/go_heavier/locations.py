@@ -85,7 +85,7 @@ async def update_location(
     return updated_location
 
 
-@router.delete("/locations/{location_id}")
+@router.delete("/locations/{location_id}", status_code=204)
 def delete_location(location_id: Annotated[str, uuid.UUID]) -> Response:
     try:
         location_uuid = uuid.UUID(location_id)

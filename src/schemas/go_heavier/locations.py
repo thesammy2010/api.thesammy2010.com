@@ -19,13 +19,11 @@ class _BaseLocation(BaseModel):
         description="Description of the location",
         max_length=255,
         default=None,
-        nullable=True,
     )
     logo_url: Optional[str] = Field(
         description="URL of the location's logo",
         max_length=512,
         default=None,
-        nullable=True,
     )
 
     @field_validator("logo_url", mode="before")
@@ -37,25 +35,21 @@ class _BaseLocation(BaseModel):
         description="First line of the address",
         max_length=255,
         default=None,
-        nullable=True,
     )
     address_line2: Optional[str] = Field(
         description="Second line of the address",
         max_length=255,
         default=None,
-        nullable=True,
     )
     address_city: Optional[str] = Field(
         description="City of the location",
         max_length=255,
         default=None,
-        nullable=True,
     )
     address_postal_code: Optional[str] = Field(
         description="Postal code of the location",
         max_length=8,
         default=None,
-        nullable=True,
         pattern=r"^([A-Za-z][A-Ha-hJ-Yj-y]?[0-9][A-Za-z0-9]? ?[0-9][A-Za-z]{2}|[Gg][Ii][Rr] ?0[Aa]{2})$",
     )
     address_country_iso3: IsoCountryCode = Field(
@@ -64,7 +58,6 @@ class _BaseLocation(BaseModel):
         min_length=3,
         examples=list(IsoCountryCode),
         pattern=r"^[A-Z]{3}$",
-        nullable=False,
     )
 
 

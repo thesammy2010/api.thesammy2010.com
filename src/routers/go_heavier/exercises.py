@@ -85,7 +85,7 @@ async def update_exercise(
     return updated_exercise
 
 
-@router.delete("/exercises/{exercise_id}")
+@router.delete("/exercises/{exercise_id}", status_code=204)
 def delete_exercise(exercise_id: Annotated[str, uuid.UUID]) -> Response:
     try:
         exercise_uuid = uuid.UUID(exercise_id)
