@@ -52,7 +52,8 @@ async def get_workouts(
     return workouts.get_workouts(request=request)
 
 
-@router.post("/workouts", response_model=WorkoutResponse)
+# The request takes a list of sets, so the response is the list that was created
+@router.post("/workouts", response_model=List[WorkoutResponse], status_code=201)
 async def create_workout(
     workouts_: CreateWorkoutsRequest,
 ) -> Optional[List[DBWorkout]]:

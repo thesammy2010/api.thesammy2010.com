@@ -7,6 +7,7 @@ from src.config import Config
 from src.migration_utils.google_sheets import (
     load_exercises_from_sheet,
     load_locations_from_sheet,
+    load_sessions_from_sheet,
     load_workouts_from_sheet,
 )
 from src.models import Base
@@ -21,10 +22,11 @@ logger = logging.getLogger(__name__)
 
 cfg = Config()
 
-# Locations and exercises are migrated first because workouts reference them.
+# Each table is migrated after the ones it references.
 MIGRATION_ORDER: Sequence[MigrationTable] = (
     MigrationTable.LOCATIONS,
     MigrationTable.EXERCISES,
+    MigrationTable.SESSIONS,
     MigrationTable.WORKOUTS,
 )
 
@@ -46,7 +48,15 @@ def _load_rows(table: MigrationTable, request: RunMigrationRequest) -> List[Base
         return load_locations_from_sheet(cfg=cfg)
     if table == MigrationTable.EXERCISES:
         return load_exercises_from_sheet(cfg=cfg)
-    return load_workouts_from_sheet(
+
+    # Sessions and sets come from the same sheet and take the same narrowing,
+    # so that a set is never loaded without the session it belongs to.
+    load = (
+        load_sessions_from_sheet
+        if table == MigrationTable.SESSIONS
+        else load_workouts_from_sheet
+    )
+    return load(
         cfg=cfg,
         range_start=request.workouts_row_start or 0,
         range_end=request.workouts_row_end,

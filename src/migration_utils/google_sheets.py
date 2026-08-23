@@ -11,12 +11,13 @@ from src.migration_utils.datetime_parsing import (
     clean_datetime_string,
     parse_sheet_datetime,
 )
+from src.migration_utils.session_ids import session_id_for
 from src.migration_utils.sheet_frames import (
     drop_incomplete_workouts,
     drop_unmapped_columns,
     to_frame,
 )
-from src.models.go_heavier import Exercise, Location, Workout
+from src.models.go_heavier import Exercise, Location, Session, Workout
 
 
 def _get_worksheet(
@@ -113,27 +114,21 @@ def load_exercises_from_sheet(cfg: Config = Config()) -> List[Exercise]:
     return exercises
 
 
-def load_workouts_from_sheet(
-    cfg: Config = Config(),
-    range_start: int = 0,
-    range_end: Optional[int] = None,
-    after: Optional[datetime.datetime] = None,
-    before: Optional[datetime.datetime] = None,
-) -> List[Workout]:
-    """Load workouts from the sheet.
+def _workout_frame(
+    cfg: Config,
+    range_start: int,
+    range_end: Optional[int],
+    after: Optional[datetime.datetime],
+    before: Optional[datetime.datetime],
+) -> pandas.DataFrame:
+    """The workouts sheet, forward filled, narrowed and validated.
 
-    ``range_start``/``range_end`` slice the sheet rows the same way as the raw
-    sheet values, so ``range_end`` counts the header row. ``after``/``before``
-    filter on the workout time. Both are applied after the forward fill so that
-    a narrowed range still inherits the location, exercise and time carried down
-    from the rows above it, and before the remaining columns are parsed so that
-    rows outside the range cannot fail the whole load.
+    Both the sessions and the sets are built from this, so that they cannot
+    disagree about which rows are in range.
     """
     locations_mapping = get_locations_mapping(cfg=cfg)
     exercise_mapping = get_exercises_mapping(cfg=cfg)
-    workouts_sheet = get_workouts(cfg=cfg)
-    workouts: List[Workout] = []
-    data = workouts_sheet.get_all_values()
+    data = get_workouts(cfg=cfg).get_all_values()
 
     df = to_frame(data, blanks_as_none=True)
     df["location"] = df["location"].map(locations_mapping)
@@ -159,7 +154,65 @@ def load_workouts_from_sheet(
         df = df[df["workout_time"] >= after]
     if before is not None:
         df = df[df["workout_time"] <= before]
+
     df = drop_incomplete_workouts(df.copy())
+
+    # The sheet has no session id, so derive a stable one from the pair that
+    # identifies a session. The same pair gives the same id on every run.
+    df["session_id"] = [
+        session_id_for(location_id=location, workout_time=workout_time)
+        for location, workout_time in zip(df["location"], df["workout_time"])
+    ]
+
+    # Named for the model rather than the sheet. Without this the column is
+    # dropped as unmapped and the attribute is never set, which merge() would
+    # quietly leave at whatever the database already held.
+    return df.rename({"exercise": "exercise_id"}, axis=1)
+
+
+def load_sessions_from_sheet(
+    cfg: Config = Config(),
+    range_start: int = 0,
+    range_end: Optional[int] = None,
+    after: Optional[datetime.datetime] = None,
+    before: Optional[datetime.datetime] = None,
+) -> List[Session]:
+    """One session per location and time in the workouts sheet."""
+    df = _workout_frame(cfg, range_start, range_end, after, before)
+
+    sessions_frame = df[["session_id", "location", "workout_time"]].drop_duplicates(
+        subset="session_id"
+    )
+
+    now = pendulum.now("UTC")
+    return [
+        Session(
+            id=row["session_id"],
+            location_id=row["location"],
+            workout_time=row["workout_time"],
+            created_at=now,
+            updated_at=now,
+        )
+        for row in sessions_frame.to_dict(orient="records")
+    ]
+
+
+def load_workouts_from_sheet(
+    cfg: Config = Config(),
+    range_start: int = 0,
+    range_end: Optional[int] = None,
+    after: Optional[datetime.datetime] = None,
+    before: Optional[datetime.datetime] = None,
+) -> List[Workout]:
+    """Load the sets from the sheet.
+
+    ``range_start``/``range_end`` slice the sheet rows the same way as the raw
+    sheet values, so ``range_end`` counts the header row. ``after``/``before``
+    filter on the workout time. The sessions these sets belong to come from
+    ``load_sessions_from_sheet`` and must be merged first.
+    """
+    df = _workout_frame(cfg, range_start, range_end, after, before)
+    workouts: List[Workout] = []
 
     df["index"] = df["index"].astype(int)
     df["weight_kg"] = df["weight_kg"].astype(float)
@@ -178,7 +231,6 @@ def load_workouts_from_sheet(
     df["created_at"] = pendulum.now("UTC")
     df["updated_at"] = pendulum.now("UTC")
 
-    df = df.rename({"location": "location_id", "exercise": "exercise_id"}, axis=1)
     df = drop_unmapped_columns(df, Workout)
 
     for row in df.to_dict(orient="records"):

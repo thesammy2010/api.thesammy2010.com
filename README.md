@@ -128,18 +128,34 @@ that `stats` is not matched as a workout id.
 
 ### Sessions
 
-A session is every set sharing one `workout_time`, which until now was only
-implicit in the data. `GET /go-heavier/sessions` lists them most recent first,
-and `GET /go-heavier/sessions/{workout_time}` returns one with a per exercise
+A session is one visit to a gym, and owns every set performed while there. It is
+a table of its own: `workouts` carries a `session_id`, and the location and the
+time live on the session rather than being repeated on all of its sets.
+
+`GET /go-heavier/sessions` lists them most recent first, and
+`GET /go-heavier/sessions/{session_id}` returns one with a per exercise
 breakdown, ordered by the set each exercise started on.
 
 ```bash
+# create a session, then log sets against it
+curl -X POST localhost:8000/go-heavier/sessions \
+  -H 'Content-Type: application/json' \
+  -d '{"location_id": "'$LOCATION_ID'", "workout_time": "2026-09-01T18:00:00Z"}' | jq
+
 curl "localhost:8000/go-heavier/sessions" | jq
 
 # sessions that included one exercise, though the totals still cover the whole session
 curl "localhost:8000/go-heavier/sessions?exercise_id=$EXERCISE_ID" | jq
 
-curl "localhost:8000/go-heavier/sessions/2026-08-20T21:20:00Z" | jq
+curl "localhost:8000/go-heavier/sessions/$SESSION_ID" | jq
+```
+
+Deleting a session deletes every set logged against it. The sets belong to the
+session and carry neither a location nor a time of their own, so leaving them
+would leave rows that cannot be placed.
+
+```bash
+curl -X DELETE "localhost:8000/go-heavier/sessions/$SESSION_ID"
 ```
 
 | query param | default | description |
@@ -149,14 +165,48 @@ curl "localhost:8000/go-heavier/sessions/2026-08-20T21:20:00Z" | jq
 | `after` / `before` | none | inclusive `workout_time` bounds |
 | `page` | `1` | pages of `DEFAULT_DB_PAGE_SIZE` sessions |
 
-The path parameter is the session's `workout_time` in ISO 8601, exactly as the
-listing returns it. A time with no offset is read as UTC.
+Creating a session derives its id from the location and the time in exactly
+the way the sheet load does, so the two converge on one row instead of competing
+for the unique constraint over that pair. Creating the same one twice is a `409`
+carrying the existing id.
+
+The sheet has no session id, so one is derived from the location and the time
+with a `uuid5`. That keeps it identical on every run, which is what lets the
+sheet load merge onto the existing sessions instead of inserting duplicates.
+Correcting a session's time in the sheet therefore produces a new id, leaving
+the old session behind to be cleaned up.
+
+### Session stats
+
+`GET /go-heavier/sessions/stats` aggregates across sessions, where
+`/sessions/{session_id}` aggregates within one. Averages are taken per session
+rather than per set, so they answer what a typical visit looks like.
+
+```bash
+curl "localhost:8000/go-heavier/sessions/stats" | jq
+
+curl "localhost:8000/go-heavier/sessions/stats?location_id=$LOCATION_ID&after=2026-01-01T00:00:00Z" | jq
+```
+
+| query param | default | description |
+| --- | --- | --- |
+| `location_id` | none | only count sessions at this location |
+| `exercise_id` | none | only count sessions that included this exercise |
+| `after` / `before` | none | inclusive `workout_time` bounds |
+
+`average_days_between_sessions` and `longest_gap_days` are null rather than zero
+when there are fewer than two sessions to measure between. `by_weekday` is in UK
+local time, Monday first, and omits days with no sessions.
+
+Note that the route is declared before `/sessions/{session_id}` in the router, so
+that `stats` is not matched as a session id.
 
 ### Loading data from the Google Sheet
 
 `POST /go-heavier/migrations` runs the same load the data migrations run, upserting
 rows from the Google Sheet into the database. Tables are always migrated in
-dependency order (locations, exercises, then workouts) regardless of the order given.
+dependency order (locations, exercises, sessions, then workouts) regardless of
+the order given.
 
 ```bash
 # everything
@@ -176,7 +226,7 @@ curl -X POST localhost:8000/go-heavier/migrations \
 
 | field | default | description |
 | --- | --- | --- |
-| `tables` | all | any of `locations`, `exercises`, `workouts` |
+| `tables` | all | any of `locations`, `exercises`, `sessions`, `workouts` |
 | `dry_run` | `false` | parse the sheet but write nothing |
 | `workouts_after` / `workouts_before` | none | inclusive `workout_time` bounds |
 | `workouts_row_start` / `workouts_row_end` | whole sheet | sheet row bounds, as used by the data migrations |

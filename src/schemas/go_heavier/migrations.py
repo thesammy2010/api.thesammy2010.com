@@ -13,6 +13,7 @@ from pydantic import (
 class MigrationTable(str, enum.Enum):
     LOCATIONS = "locations"
     EXERCISES = "exercises"
+    SESSIONS = "sessions"
     WORKOUTS = "workouts"
 
 

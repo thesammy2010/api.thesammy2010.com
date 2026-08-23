@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
@@ -11,18 +11,14 @@ from src.schemas.utils import PaginationParams
 class _BaseWorkout(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    location_id: UUID = Field(
-        description="Unique identifier for this workout location",
+    session_id: UUID = Field(
+        description="Unique identifier for the session this set belongs to. The "
+        "location and the time are on the session",
         nullable=False,
     )
     exercise_id: UUID = Field(
         description="Unique identifier for this workout exercise",
         nullable=False,
-    )
-    workout_time: AwareDatetime = Field(
-        description="The date and time when the workout was performed",
-        nullable=False,
-        default=None,
     )
     index: int = Field(
         description="The index of the set within the workout session",
@@ -94,50 +90,27 @@ class UpdateWorkoutRequest(_BaseWorkout):
 
 class ListWorkoutsRequest(PaginationParams):
     model_config = ConfigDict(from_attributes=True)
-    exercise_id: Optional[
-        Annotated[
-            UUID,
-            Field(
-                description="Unique identifier for filtering workouts by exercise",
-                min_length=32,
-                max_length=36,
-                nullable=True,
-                default=None,
-            ),
-        ]
-    ] = None
-    location_id: Optional[
-        Annotated[
-            UUID,
-            Field(
-                description="Unique identifier for filtering workouts by location",
-                min_length=32,
-                max_length=36,
-                nullable=True,
-                default=None,
-            ),
-        ]
-    ] = None
-    after: Optional[
-        Annotated[
-            AwareDatetime,
-            Field(
-                description="Filter workouts created after this datetime",
-                nullable=True,
-                default=None,
-            ),
-        ]
-    ] = None
-    before: Optional[
-        Annotated[
-            AwareDatetime,
-            Field(
-                description="Filter workouts created before this datetime",
-                nullable=True,
-                default=None,
-            ),
-        ]
-    ] = None
+
+    exercise_id: Optional[UUID] = Field(
+        description="Only list sets of this exercise",
+        default=None,
+    )
+    location_id: Optional[UUID] = Field(
+        description="Only list sets from sessions at this location",
+        default=None,
+    )
+    after: Optional[AwareDatetime] = Field(
+        description="Only list sets from sessions at or after this datetime",
+        default=None,
+    )
+    before: Optional[AwareDatetime] = Field(
+        description="Only list sets from sessions at or before this datetime",
+        default=None,
+    )
+    session_id: Optional[UUID] = Field(
+        description="Only list sets from this session",
+        default=None,
+    )
 
 
 class WorkoutResponse(_BaseWorkout):
@@ -145,7 +118,7 @@ class WorkoutResponse(_BaseWorkout):
     created_at: AwareDatetime
     updated_at: Optional[AwareDatetime]
 
-    @field_validator("created_at", "updated_at", "workout_time", mode="before")
+    @field_validator("created_at", "updated_at", mode="before")
     @classmethod
     def ensure_timezone_aware(cls, value):
         """Convert naive datetimes to timezone-aware datetimes (UTC)"""

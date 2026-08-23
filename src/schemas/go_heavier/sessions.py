@@ -42,9 +42,8 @@ class ListSessionsRequest(PaginationParams):
 class _BaseSession(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    workout_time: AwareDatetime = Field(
-        description="When the session took place, the key identifying it"
-    )
+    id: UUID = Field(description="Unique identifier for the session")
+    workout_time: AwareDatetime = Field(description="When the session took place")
     location_id: UUID = Field(description="Unique identifier for the location")
     location: str = Field(description="Name of the location")
     sets: int = Field(description="Number of sets logged in the session")
@@ -53,8 +52,10 @@ class _BaseSession(BaseModel):
     volume_kg: float = Field(
         description="Total weight moved, the sum of weight_kg multiplied by repetitions"
     )
-    heaviest_weight_kg: float = Field(
-        description="The heaviest single weight lifted in the session"
+    heaviest_weight_kg: Optional[float] = Field(
+        description="The heaviest single weight lifted in the session, null "
+        "while nothing has been logged against it yet",
+        default=None,
     )
 
     @field_validator("workout_time", mode="before")
@@ -81,6 +82,15 @@ class SessionExerciseStats(BaseModel):
     heaviest_weight_kg: float = Field(
         description="The heaviest single weight lifted for this exercise"
     )
+
+
+class CreateSessionRequest(BaseModel):
+    """A visit to a gym, to log sets against."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    location_id: UUID = Field(description="Where the session took place")
+    workout_time: AwareDatetime = Field(description="When the session took place")
 
 
 class SessionSummary(_BaseSession):
