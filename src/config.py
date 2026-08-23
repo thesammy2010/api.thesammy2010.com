@@ -19,13 +19,6 @@ class Environment(enum.Enum):
     PRODUCTION = "prod"
 
 
-def get_env(override: Optional[str] = None) -> Optional[Environment]:
-    try:
-        return Environment(override or os.getenv("ENV"))
-    except ValueError:
-        return None
-
-
 class Config:
     # Absent when the app is only being imported rather than served, such as
     # in the tests. The session is opened on first use, so this is only
@@ -55,8 +48,7 @@ class Config:
                 )
         return None
 
-    def __init__(self, env: Environment = get_env()) -> None:
-        self.env = env
+    def __init__(self) -> None:
         self.google_service_account_filepath: str = (
             self._parse_google_service_account_json()
         )
