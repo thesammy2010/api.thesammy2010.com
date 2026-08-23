@@ -1,4 +1,5 @@
 import datetime
+import logging
 import uuid
 from typing import List, Optional
 
@@ -24,6 +25,8 @@ from src.schemas.go_heavier.sessions import (
     SessionResponse,
     SessionSummary,
 )
+
+logger = logging.getLogger(__name__)
 
 # A session owns its sets, so the totals are an aggregate over the join.
 _SUMMARY_COLUMNS = (
@@ -334,3 +337,30 @@ def create_session(request: CreateSessionRequest) -> SessionResponse:
     session.commit()
 
     return get_session(session_id=session_id)
+
+
+def delete_session(session_id: uuid.UUID) -> bool:
+    """Delete a session and every set logged against it.
+
+    The sets belong to the session and are meaningless without it, since the
+    location and the time they were performed at live on the session.
+    """
+    db_session = session.query(DBSession).filter(DBSession.id == session_id).first()
+    if not db_session:
+        return False
+
+    try:
+        sets = (
+            session.query(DBWorkout)
+            .filter(DBWorkout.session_id == session_id)
+            .delete(synchronize_session=False)
+        )
+        session.delete(db_session)
+        session.commit()
+    except Exception:
+        # The session is shared across requests, so it must not be left dirty
+        session.rollback()
+        raise
+
+    logger.info(f"Deleted session {session_id} and the {sets} sets logged against it")
+    return True

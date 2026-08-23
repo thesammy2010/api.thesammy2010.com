@@ -150,6 +150,14 @@ curl "localhost:8000/go-heavier/sessions?exercise_id=$EXERCISE_ID" | jq
 curl "localhost:8000/go-heavier/sessions/$SESSION_ID" | jq
 ```
 
+Deleting a session deletes every set logged against it. The sets belong to the
+session and carry neither a location nor a time of their own, so leaving them
+would leave rows that cannot be placed.
+
+```bash
+curl -X DELETE "localhost:8000/go-heavier/sessions/$SESSION_ID"
+```
+
 | query param | default | description |
 | --- | --- | --- |
 | `location_id` | none | only list sessions at this location |

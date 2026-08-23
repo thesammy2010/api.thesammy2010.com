@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from src.migration_utils.session_ids import session_id_for
 from src.schemas.go_heavier.sessions import (
     CreateSessionRequest,
     ListSessionsRequest,
@@ -180,3 +181,20 @@ class TestEmptySession:
 
         assert summary.heaviest_weight_kg is None
         assert summary.sets == 0
+
+
+class TestSessionIdentityIsRecoverable:
+    """The derived id means a session can be rebuilt from what identifies it.
+
+    This matters for delete: recreating a session that was removed by mistake
+    restores the same id, so anything still referring to it lines up again.
+    """
+
+    def test_the_same_location_and_time_rebuild_the_same_id(self):
+        location_id = uuid4()
+        workout_time = datetime(2026, 8, 22, 17, 30, tzinfo=timezone.utc)
+
+        first = session_id_for(location_id=location_id, workout_time=workout_time)
+        rebuilt = session_id_for(location_id=location_id, workout_time=workout_time)
+
+        assert first == rebuilt

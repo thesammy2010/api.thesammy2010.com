@@ -2,7 +2,7 @@ import logging
 import uuid
 from typing import Annotated, List
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from src.resolvers.go_heavier import sessions
 from src.resolvers.go_heavier.sessions import (
@@ -69,3 +69,18 @@ async def get_session(session_id: Annotated[str, uuid.UUID]) -> SessionResponse:
     if not workout_session:
         raise HTTPException(status_code=404, detail="Session not found")
     return workout_session
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(session_id: Annotated[str, uuid.UUID]) -> Response:
+    """Delete a session and every set logged against it."""
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail={"detail": "Invalid format for session id"},
+        )
+    if not sessions.delete_session(session_id=session_uuid):
+        raise HTTPException(status_code=404, detail="Session not found")
+    return Response(status_code=204)
