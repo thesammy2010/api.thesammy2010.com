@@ -14,34 +14,28 @@ class _BaseWorkout(BaseModel):
     session_id: UUID = Field(
         description="Unique identifier for the session this set belongs to. The "
         "location and the time are on the session",
-        nullable=False,
     )
     exercise_id: UUID = Field(
         description="Unique identifier for this workout exercise",
-        nullable=False,
     )
     index: int = Field(
         description="The index of the set within the workout session",
-        nullable=False,
         gt=0,
         lt=100,
     )
     repetitions: int = Field(
         description="The number of times the workout action was repeated",
-        nullable=False,
         gt=0,
         lt=100,
     )
     weight_kg: float = Field(
         description="The weight used during the workout in kilograms. Negative "
         "for an assisted exercise, where the machine takes weight off the lifter",
-        nullable=False,
         gt=-1000.0,
         lt=1000.0,
     )
     bar_weight_kg: Optional[float] = Field(
         description="The weight of the bar used during the workout in kilograms",
-        nullable=True,
         gt=0.0,
         lt=100.0,
         default=None,
@@ -49,7 +43,6 @@ class _BaseWorkout(BaseModel):
     supplementary_weight_kg: Optional[float] = Field(
         description="The supplementary weight added to the bar during the workout "
         "in kilograms. Negative when it assists rather than loads the lifter",
-        nullable=True,
         gt=-100.0,
         lt=100.0,
         default=None,
@@ -57,7 +50,6 @@ class _BaseWorkout(BaseModel):
     notes: Optional[str] = Field(
         description="Additional notes or comments about the workout",
         max_length=512,
-        nullable=True,
         default=None,
     )
 

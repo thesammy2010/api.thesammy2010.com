@@ -85,7 +85,7 @@ def update_workout(
 
 
 # delete workout
-@router.delete("/workouts/{workout_id}", response_model=WorkoutResponse)
+@router.delete("/workouts/{workout_id}", status_code=204)
 async def delete_workout(
     workout_id: Annotated[str, uuid.UUID],
 ) -> Response:

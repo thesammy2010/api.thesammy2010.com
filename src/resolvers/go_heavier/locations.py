@@ -2,7 +2,6 @@ import datetime
 import uuid
 from typing import List, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import desc, distinct, func
 
 from src.db import session
@@ -30,8 +29,8 @@ def update_location(
     location_id: uuid.UUID, location: LocationRequest
 ) -> Optional[DBLocation]:
     db_location = get_location(location_id)
-    if not location:
-        raise HTTPException(status_code=404, detail="Location not found")
+    if not db_location:
+        return None
 
     for field, value in location.model_dump().items():
         if value is not None:
@@ -65,7 +64,7 @@ def create_location(location: LocationRequest) -> DBLocation:
 def delete_location(location_id: uuid.UUID) -> bool:
     location = get_location(location_id)
     if not location:
-        raise HTTPException(status_code=404, detail="Location not found")
+        return False
     session.delete(location)
     session.commit()
     return True

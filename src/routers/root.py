@@ -8,7 +8,7 @@ from src.resolvers.users import create_user_in_db, get_current_user
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["users"])
 
 
 @router.get("/users")

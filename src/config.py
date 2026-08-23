@@ -19,16 +19,13 @@ class Environment(enum.Enum):
     PRODUCTION = "prod"
 
 
-def get_env(override: Optional[str] = None) -> Optional[Environment]:
-    try:
-        return Environment(override or os.getenv("ENV"))
-    except ValueError:
-        return None
-
-
 class Config:
-    DATABASE_URL: str = os.getenv("DATABASE_URL").replace(
-        "postgres://", "postgresql+psycopg://"
+    # Absent when the app is only being imported rather than served, such as
+    # in the tests. The session is opened on first use, so this is only
+    # required by the time something actually talks to the database.
+    DATABASE_URL: Optional[str] = (
+        os.getenv("DATABASE_URL", "").replace("postgres://", "postgresql+psycopg://")
+        or None
     )
     ENVIRONMENT: Environment = Environment(os.getenv("ENVIRONMENT", "local"))
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
@@ -51,8 +48,7 @@ class Config:
                 )
         return None
 
-    def __init__(self, env: Environment = get_env()) -> None:
-        self.env = env
+    def __init__(self) -> None:
         self.google_service_account_filepath: str = (
             self._parse_google_service_account_json()
         )

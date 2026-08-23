@@ -217,8 +217,15 @@ def load_workouts_from_sheet(
     df["index"] = df["index"].astype(int)
     df["weight_kg"] = df["weight_kg"].astype(float)
     df["repetitions"] = df["repetitions"].astype(int)
-    df["bar_weight_kg"] = df["bar_weight_kg"].astype(float)
-    df["supplementary_weight_kg"] = df["supplementary_weight_kg"].astype(float)
+    # astype(float) turns a blank cell into NaN, which is then stored as NaN
+    # rather than NULL. Build these from a list so the blanks stay null, the
+    # same way the notes column does.
+    for column in ("bar_weight_kg", "supplementary_weight_kg"):
+        df[column] = pandas.Series(
+            [None if pandas.isna(value) else float(value) for value in df[column]],
+            index=df.index,
+            dtype=object,
+        )
     # Blank cells are None by this point. astype(str) would write them as the
     # literal "None", and Series.map coerces None back to NaN, so build the
     # column from a list to keep the blanks null.

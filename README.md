@@ -15,6 +15,17 @@ poetry install
 pre-commit install
 ```
 
+Configuration comes from a `.env`, which is not tracked. Copy the example and
+fill it in:
+
+```bash
+cp .env.example .env
+```
+
+`GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` is a service account key with read access
+to the spreadsheet, base64 encoded. It is only needed to load data from the
+sheet. In production these come from the Fly app's secrets rather than a file.
+
 
 ### Runnning the API
 ```bash
