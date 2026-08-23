@@ -54,6 +54,14 @@ fly proxy 15432:5432 -a thesammy2010
 alembic upgrade head
 ```
 
+Deploying no longer runs these. `alembic upgrade head` has to be run against
+production deliberately, so a schema change and the deploy that needs it are not
+coupled to each other by accident.
+
+CI runs them from empty against a throwaway Postgres service container, never
+against a real database, and then runs `alembic check` so the models and the
+migrations cannot drift apart unnoticed.
+
 Try to use `alembic revision --autogenerate -m "message"` to create new migrations.
 
 ### db for local development

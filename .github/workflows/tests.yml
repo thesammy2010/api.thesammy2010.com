@@ -10,6 +10,28 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # A throwaway database for this run only. Nothing here should ever point at
+    # the real one: the migrations are applied to it from empty, every time.
+    services:
+      postgres:
+        image: postgres:17.5-alpine3.21
+        env:
+          POSTGRES_USER: api
+          POSTGRES_PASSWORD: api
+          POSTGRES_DB: api_thesammy2010_com
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Takes precedence over the checked in .env, which load_dotenv will not
+      # override once the variable is already set.
+      DATABASE_URL: postgres://api:api@localhost:5432/api_thesammy2010_com
+
     steps:
     - name: Check out code
       uses: actions/checkout@v3
@@ -36,14 +58,18 @@ jobs:
     - name: Install dependencies
       run: poetry install --no-interaction --no-root
 
+    - name: Run migrations
+      run: poetry run alembic upgrade head
+
+    - name: Check the models match the migrations
+      run: poetry run alembic check
 
     - name: Run tests
-      run: poetry run pytest tests/ -v --tb=short
+      run: poetry run pytest tests/ -v --tb=short | tee pytest.log
 
     - name: Test Summary
       if: always()
       run: |
         echo "## Test Results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        poetry run pytest tests/ -v --tb=short | tail -n 20 >> $GITHUB_STEP_SUMMARY || true
-
+        tail -n 20 pytest.log >> $GITHUB_STEP_SUMMARY || true
