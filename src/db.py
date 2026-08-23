@@ -12,6 +12,9 @@ _session: Optional[Session] = None
 
 
 def init_db(cfg: Config) -> Session:
+    if not cfg.DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is not set, cannot connect to the database")
+
     engine = sqlalchemy.create_engine(
         cfg.DATABASE_URL,
     )

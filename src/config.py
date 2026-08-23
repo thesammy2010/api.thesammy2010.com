@@ -27,8 +27,12 @@ def get_env(override: Optional[str] = None) -> Optional[Environment]:
 
 
 class Config:
-    DATABASE_URL: str = os.getenv("DATABASE_URL").replace(
-        "postgres://", "postgresql+psycopg://"
+    # Absent when the app is only being imported rather than served, such as
+    # in the tests. The session is opened on first use, so this is only
+    # required by the time something actually talks to the database.
+    DATABASE_URL: Optional[str] = (
+        os.getenv("DATABASE_URL", "").replace("postgres://", "postgresql+psycopg://")
+        or None
     )
     ENVIRONMENT: Environment = Environment(os.getenv("ENVIRONMENT", "local"))
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
