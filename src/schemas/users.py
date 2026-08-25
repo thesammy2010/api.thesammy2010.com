@@ -13,5 +13,4 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    google_account_id: str
     role: UserRole
