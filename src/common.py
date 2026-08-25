@@ -1,20 +1,82 @@
 import enum
+import logging
+from typing import Annotated, Any, Dict, Optional
 
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from pydantic import BaseModel
 
 from src.config import Config
 
+logger = logging.getLogger(__name__)
 
-class CommonHeaders(BaseModel):
-    authorization: str
+# auto_error=False so require_auth can return its own 401 (with the same
+# body/headers whether the token is missing or invalid), instead of this
+# raising its own differently-shaped 403 for a missing header. Declaring it
+# as a proper security scheme, rather than reading `Authorization` as a
+# plain header, is what gives /docs its "Authorize" button and per-route
+# lock icons.
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+class UserRole(str, enum.Enum):
+    GUEST = "guest"
+    VIEWER = "viewer"
+    EDITOR = "editor"
+    ADMIN = "admin"
+
+
+# Each role includes everything the ones below it can do. Role management is
+# a special case handled on its own rather than through this ranking: it is
+# reserved for ADMIN regardless of where EDITOR sits.
+ROLE_RANK: Dict[UserRole, int] = {
+    UserRole.GUEST: 0,
+    UserRole.VIEWER: 1,
+    UserRole.EDITOR: 2,
+    UserRole.ADMIN: 3,
+}
 
 
 def decode_token(token: str):
     return id_token.verify_oauth2_token(
         token, requests.Request(), Config.GOOGLE_CLIENT_ID
     )
+
+
+def require_auth(
+    credentials: Annotated[
+        Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)
+    ] = None,
+) -> Dict[str, Any]:
+    """Dependency that gates a route behind a valid Google Sign-In token.
+
+    Any failure to verify the token - malformed, expired, wrong audience -
+    is treated as unauthenticated rather than allowed to surface as a 500,
+    since the token is untrusted client input.
+
+    Skipped entirely when Config.DISABLE_AUTH is set, so local/dev testing
+    doesn't need a real Google token; that flag is never honoured in prod.
+    """
+    if Config.DISABLE_AUTH:
+        return {"sub": "test-user"}
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        return decode_token(credentials.credentials)
+    except Exception as e:
+        logger.error(f"Failed to decode token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 class IsoCountryCode(str, enum.Enum):

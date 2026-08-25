@@ -2,10 +2,11 @@ import logging
 import uuid
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from src.models.go_heavier.exercise import Exercise as DBExercise
 from src.resolvers.go_heavier import exercises
+from src.resolvers.users import require_editor, require_viewer
 from src.schemas.go_heavier.exercise_stats import (
     ExerciseStatsRequest,
     ExerciseStatsResponse,
@@ -17,13 +18,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/go-heavier", tags=["exercises"])
 
 
-@router.get("/exercises", response_model=List[ExerciseResponse])
+@router.get(
+    "/exercises",
+    response_model=List[ExerciseResponse],
+    dependencies=[Depends(require_viewer)],
+)
 def get_exercises() -> List[DBExercise]:
+    """Every tracked exercise."""
     return exercises.get_exercises()
 
 
-@router.get("/exercises/{exercise_id}", response_model=Optional[ExerciseResponse])
+@router.get(
+    "/exercises/{exercise_id}",
+    response_model=Optional[ExerciseResponse],
+    dependencies=[Depends(require_viewer)],
+)
 async def get_exercise(exercise_id: Annotated[str, uuid.UUID]) -> Optional[DBExercise]:
+    """A single exercise by id."""
     try:
         exercise_uuid = uuid.UUID(exercise_id)
     except ValueError:
@@ -37,11 +48,20 @@ async def get_exercise(exercise_id: Annotated[str, uuid.UUID]) -> Optional[DBExe
     return exercise
 
 
-@router.get("/exercises/{exercise_id}/stats", response_model=ExerciseStatsResponse)
+@router.get(
+    "/exercises/{exercise_id}/stats",
+    response_model=ExerciseStatsResponse,
+    dependencies=[Depends(require_viewer)],
+)
 async def get_exercise_stats(
     exercise_id: Annotated[str, uuid.UUID],
     request: Annotated[ExerciseStatsRequest, Query()],
 ) -> ExerciseStatsResponse:
+    """Aggregates an exercise's history across sessions.
+
+    Mirrors the location stats, but aggregated over an exercise instead;
+    a session here is one distinct `workout_time`.
+    """
     try:
         exercise_uuid = uuid.UUID(exercise_id)
     except ValueError:
@@ -55,8 +75,13 @@ async def get_exercise_stats(
     return stats
 
 
-@router.post("/exercises", response_model=ExerciseResponse)
+@router.post(
+    "/exercises",
+    response_model=ExerciseResponse,
+    dependencies=[Depends(require_editor)],
+)
 async def create_exercise(exercise: ExerciseRequest) -> Optional[DBExercise]:
+    """Creates an exercise."""
     try:
         new_exercise = exercises.create_exercise(exercise)
         return new_exercise
@@ -65,11 +90,16 @@ async def create_exercise(exercise: ExerciseRequest) -> Optional[DBExercise]:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.put("/exercises/{exercise_id}", response_model=ExerciseResponse)
+@router.put(
+    "/exercises/{exercise_id}",
+    response_model=ExerciseResponse,
+    dependencies=[Depends(require_editor)],
+)
 async def update_exercise(
     exercise_id: Annotated[str, uuid.UUID],
     exercise: ExerciseRequest,
 ) -> Optional[DBExercise]:
+    """Replaces an exercise's fields."""
     try:
         exercise_uuid = uuid.UUID(exercise_id)
     except ValueError:
@@ -85,8 +115,13 @@ async def update_exercise(
     return updated_exercise
 
 
-@router.delete("/exercises/{exercise_id}", status_code=204)
+@router.delete(
+    "/exercises/{exercise_id}",
+    status_code=204,
+    dependencies=[Depends(require_editor)],
+)
 def delete_exercise(exercise_id: Annotated[str, uuid.UUID]) -> Response:
+    """Deletes an exercise."""
     try:
         exercise_uuid = uuid.UUID(exercise_id)
     except ValueError:

@@ -28,6 +28,12 @@ class Config:
         or None
     )
     ENVIRONMENT: Environment = Environment(os.getenv("ENVIRONMENT", "local"))
+    # Lets local/dev testing skip verifying a real Google token. Ignored in
+    # prod regardless of the env var, so it can never be left on by accident.
+    DISABLE_AUTH: bool = (
+        os.getenv("DISABLE_AUTH", "false").lower() == "true"
+        and ENVIRONMENT != Environment.PRODUCTION
+    )
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
     DEFAULT_DB_PAGE_SIZE: int = int(os.getenv("DEFAULT_DB_PAGE_SIZE", "50"))
     GOOGLE_SPREADSHEET_ID: str = os.getenv("GOOGLE_SPREADSHEET_ID")

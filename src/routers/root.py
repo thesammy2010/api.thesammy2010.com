@@ -1,36 +1,101 @@
 import logging
-from typing import Annotated, Dict
+import uuid
+from typing import Annotated, Any, Dict, Optional
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.routing import APIRoute
 
-from src.common import CommonHeaders, decode_token
-from src.resolvers.users import create_user_in_db, get_current_user
+from src.common import UserRole, require_auth
+from src.models.user import User
+from src.resolvers.users import (
+    create_user_in_db,
+    find_user_by_claims,
+    require_admin,
+    require_editor,
+    require_viewer,
+    set_user_role,
+)
+from src.schemas.users import UpdateUserRoleRequest, UserResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["users"])
 
 
-@router.get("/users")
-async def get_user(headers: Annotated[CommonHeaders, Header()]) -> Dict[str, str]:
-    user = get_current_user(headers.authorization.replace("Bearer ", ""))
+@router.get("/users", response_model=UserResponse)
+async def get_user(claims: Annotated[Dict[str, Any], Depends(require_auth)]) -> User:
+    """The caller's own user record. 404 if they haven't signed up yet."""
+    user = find_user_by_claims(claims)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
-    return {
-        "user_id": str(
-            get_current_user(headers.authorization.replace("Bearer ", "")).id
-        )
-    }
+    return user
 
 
-@router.post("/users")
-async def create_user(headers: Annotated[CommonHeaders, Header()]) -> Dict[str, str]:
-    try:
-        claims = decode_token(headers.authorization.replace("Bearer ", ""))
-    except Exception as e:
-        logger.error(f"Failed to decode token: {e}")
-        raise HTTPException(
-            status_code=401, detail="User must be authenticated with Google"
-        )
-    return {"user_id": str(create_user_in_db(claims).id)}
+@router.post("/users", response_model=UserResponse)
+async def create_user(claims: Annotated[Dict[str, Any], Depends(require_auth)]) -> User:
+    """Registers the caller, or returns their existing record if already
+    registered. New accounts start as GUEST; an admin must promote them."""
+    return create_user_in_db(claims)
+
+
+def _required_role(route: APIRoute) -> Optional[UserRole]:
+    """Walks a route's dependency tree to find its role gate, if any.
+
+    require_viewer/editor/admin are each one specific function object (see
+    require_role in resolvers/users.py), so identity comparison against the
+    collected dependency callables tells us exactly which gate, if any, a
+    route sits behind - without maintaining a second, separate list that
+    could drift from what's actually enforced.
+    """
+    calls = set()
+
+    def collect(dependant) -> None:
+        if dependant.call is not None:
+            calls.add(dependant.call)
+        for sub_dependant in dependant.dependencies:
+            collect(sub_dependant)
+
+    collect(route.dependant)
+
+    if require_admin in calls:
+        return UserRole.ADMIN
+    if require_editor in calls:
+        return UserRole.EDITOR
+    if require_viewer in calls:
+        return UserRole.VIEWER
+    if require_auth in calls:
+        return UserRole.GUEST
+    return None
+
+
+@router.get("/endpoints", dependencies=[Depends(require_auth)])
+def get_endpoint_roles(request: Request) -> Dict[str, Dict[str, Optional[UserRole]]]:
+    """Every endpoint and the minimum role it requires, keyed by path then
+    HTTP method. A null role means the endpoint needs no auth at all.
+
+    Needs only a valid token, not any particular role, since even a GUEST
+    should be able to see what they'll unlock once promoted.
+    """
+    endpoints: Dict[str, Dict[str, Optional[UserRole]]] = {}
+    for route in request.app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        role = _required_role(route)
+        for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
+            endpoints.setdefault(route.path, {})[method] = role
+    return endpoints
+
+
+@router.patch(
+    "/users/{user_id}/role",
+    response_model=UserResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def update_user_role(
+    user_id: uuid.UUID, request: UpdateUserRoleRequest
+) -> UserResponse:
+    """Sets a user's role. Admin-only, including for an admin's own role."""
+    user = set_user_role(user_id=user_id, role=request.role)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user

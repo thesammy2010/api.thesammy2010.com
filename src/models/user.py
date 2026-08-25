@@ -18,6 +18,12 @@ class User(Base):
     google_account_id: Mapped[str] = mapped_column(
         String(100), nullable=False, unique=True
     )
+    # One of guest/viewer/editor/admin (src.common.UserRole). Kept as a plain
+    # string rather than a DB enum, consistent with how the other enums in
+    # this codebase are only validated at the API layer, not the DB layer.
+    role: Mapped[str] = mapped_column(
+        String(50), nullable=False, server_default="guest"
+    )
     created_at: Mapped[uuid.UUID] = mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()
     )
