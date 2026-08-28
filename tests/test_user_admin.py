@@ -290,6 +290,47 @@ class TestSetUserRole:
         assert entry.new_role == UserRole.EDITOR.value
 
 
+class TestSelfDelete:
+    """Test the composition DELETE /users uses: find_user_by_claims then
+    delete_user_admin with the caller as their own actor."""
+
+    def test_a_user_can_delete_their_own_account(self, track_users: List[uuid.UUID]):
+        sub = google_account_id()
+        user = create_user_in_db({"sub": sub})
+        track_users.append(user.id)
+
+        deleted = delete_user_admin(actor=user, user_id=user.id)
+
+        assert deleted is not None
+        assert deleted.deleted_at is not None
+
+    def test_a_self_deleted_account_is_gone_from_their_own_claims_lookup(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        user = create_user_in_db({"sub": sub})
+        track_users.append(user.id)
+        delete_user_admin(actor=user, user_id=user.id)
+
+        assert find_user_by_claims({"sub": sub}) is None
+
+    def test_self_deletion_is_attributed_to_the_deleted_user_themselves(
+        self, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        delete_user_admin(actor=user, user_id=user.id)
+
+        entry = (
+            session.query(UserAuditLog).where(
+                UserAuditLog.target_user_id == user.id,
+                UserAuditLog.action == "deleted",
+            )
+        ).one()
+        assert entry.actor_id == user.id
+
+
 class TestGoogleAccountIdConstraint:
     """Test the partial unique index backing the soft-delete design."""
 

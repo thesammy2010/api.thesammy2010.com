@@ -46,6 +46,20 @@ async def create_user(claims: Annotated[Dict[str, Any], Depends(require_auth)]) 
     return create_user_in_db(claims)
 
 
+@router.delete("/users", response_model=UserResponse)
+async def delete_own_user(
+    claims: Annotated[Dict[str, Any], Depends(require_auth)],
+) -> UserResponse:
+    """Deletes the caller's own account. Self-service - any signed-in user
+    can delete themselves, no particular role required. Soft-deleted the
+    same way an admin-initiated deletion is. 404 if they haven't signed up
+    (or have already deleted their account)."""
+    user = find_user_by_claims(claims)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return delete_user_admin(actor=user, user_id=user.id)
+
+
 def _required_role(route: APIRoute) -> Optional[UserRole]:
     """Walks a route's dependency tree to find its role gate, if any.
 
