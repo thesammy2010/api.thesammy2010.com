@@ -1,5 +1,3 @@
-from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -19,8 +17,9 @@ class CreateUserRequest(BaseModel):
 
 class ListUsersRequest(PaginationParams):
     """Input schema for listing users. Paginated the same way as every
-    other list endpoint; no filters yet since admins are expected to want
-    everyone, deleted included."""
+    other list endpoint. Only active users are listed - deleted_at isn't
+    exposed at the API level, so a deleted user would be indistinguishable
+    from an active one if included."""
 
 
 class UserResponse(BaseModel):
@@ -28,4 +27,3 @@ class UserResponse(BaseModel):
 
     id: UUID
     role: UserRole
-    deleted_at: Optional[datetime] = None

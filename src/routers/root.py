@@ -28,6 +28,7 @@ from src.schemas.users import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["users"])
+admin_router = APIRouter(tags=["admin"])
 
 
 @router.get("/users", response_model=UserResponse)
@@ -50,10 +51,10 @@ async def create_user(claims: Annotated[Dict[str, Any], Depends(require_auth)]) 
 async def delete_own_user(
     claims: Annotated[Dict[str, Any], Depends(require_auth)],
 ) -> UserResponse:
-    """Deletes the caller's own account. Self-service - any signed-in user
-    can delete themselves, no particular role required. Soft-deleted the
-    same way an admin-initiated deletion is. 404 if they haven't signed up
-    (or have already deleted their account)."""
+    """Deletes the caller's own account. No particular role required - any
+    signed-in user can delete themselves, the same way an admin-initiated
+    deletion soft-deletes another user. 404 if they haven't signed up, or
+    have already deleted their account."""
     user = find_user_by_claims(claims)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -108,22 +109,22 @@ def get_endpoint_roles(request: Request) -> Dict[str, Dict[str, Optional[UserRol
     return endpoints
 
 
-@router.get("/admin/users", response_model=List[UserResponse])
+@admin_router.get("/admin/users", response_model=List[UserResponse])
 async def admin_list_users(
     actor: Annotated[User, Depends(require_admin)],
     request: Annotated[ListUsersRequest, Query()],
 ) -> List[User]:
-    """Lists every user, oldest first, deleted included. Admin-only."""
+    """Lists active users, oldest first."""
     return list_users(request)
 
 
-@router.post("/admin/users", response_model=UserResponse)
+@admin_router.post("/admin/users", response_model=UserResponse)
 async def admin_create_user(
     actor: Annotated[User, Depends(require_admin)], request: CreateUserRequest
 ) -> UserResponse:
     """Pre-provisions a Google account with a starting role, before that
-    person has ever signed in. Admin-only. 409 if an active user for that
-    account already exists."""
+    person has ever signed in. 409 if an active user for that account
+    already exists."""
     user = create_user_admin(
         actor=actor, google_account_id=request.google_account_id, role=request.role
     )
@@ -132,27 +133,27 @@ async def admin_create_user(
     return user
 
 
-@router.patch("/users/{user_id}/role", response_model=UserResponse)
+@admin_router.patch("/users/{user_id}/role", response_model=UserResponse)
 async def update_user_role(
     actor: Annotated[User, Depends(require_admin)],
     user_id: uuid.UUID,
     request: UpdateUserRoleRequest,
 ) -> UserResponse:
-    """Sets a user's role. Admin-only, including for an admin's own role."""
+    """Sets a user's role, including an admin's own."""
     user = set_user_role(actor=actor, user_id=user_id, role=request.role)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 
-@router.delete("/users/{user_id}", response_model=UserResponse)
+@admin_router.delete("/users/{user_id}", response_model=UserResponse)
 async def delete_user(
     actor: Annotated[User, Depends(require_admin)], user_id: uuid.UUID
 ) -> UserResponse:
     """Soft-deletes a user: marks them deleted rather than removing the
-    row, so their audit trail and anything they created stay intact.
-    Admin-only. Their google_account_id becomes available for a fresh
-    sign-up. 404 if they don't exist or are already deleted."""
+    row, so their audit trail and anything they created stay intact. Their
+    google_account_id becomes available for a fresh sign-up. 404 if they
+    don't exist or are already deleted."""
     user = delete_user_admin(actor=actor, user_id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

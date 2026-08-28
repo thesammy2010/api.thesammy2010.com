@@ -115,6 +115,7 @@ def set_user_role(actor: User, user_id: uuid.UUID, role: UserRole) -> Optional[U
 def list_users(request: ListUsersRequest) -> List[User]:
     return (
         session.query(User)
+        .where(User.deleted_at.is_(None))
         .order_by(User.created_at)
         .limit(Config.DEFAULT_DB_PAGE_SIZE)
         .offset(request.offset)

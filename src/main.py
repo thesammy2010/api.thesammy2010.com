@@ -31,15 +31,19 @@ app = FastAPI(
         "### Authorization\n"
         "Endpoints are gated by role - `guest` < `viewer` < `editor` < "
         "`admin`, each including everything the one below it can do, "
-        "except role management which is `admin`-only. New accounts start "
-        "as `guest`. `GET /endpoints` maps every route to the role it "
-        "requires."
+        "except managing other users, which is `admin`-only. New accounts "
+        "start as `guest`. `GET /endpoints` maps every route to the role "
+        "it requires."
     ),
     openapi_tags=[
         {
             "name": "users",
+            "description": "Sign-in and the caller's own account.",
+        },
+        {
+            "name": "admin",
             "description": (
-                "Sign-in, the current user's own record, and role management."
+                "Provisioning, listing, deleting, and setting the role of other users."
             ),
         },
         {"name": "locations", "description": "Gyms tracked in Go Heavier."},
@@ -104,6 +108,7 @@ async def guard_shared_db_session(request: Request, call_next):
 # root.router handles its own auth per-endpoint: POST /users must succeed
 # for a caller with a valid Google token who has no User row yet.
 app.include_router(root.router)
+app.include_router(root.admin_router)
 
 # Every other router declares its own minimum role per-route (viewer to
 # read, editor to write), since a single blanket dependency can't tell

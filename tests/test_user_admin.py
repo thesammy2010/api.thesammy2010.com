@@ -21,8 +21,10 @@ from src.resolvers.users import (
     create_user_in_db,
     delete_user_admin,
     find_user_by_claims,
+    list_users,
     set_user_role,
 )
+from src.schemas.users import ListUsersRequest
 
 
 @pytest.fixture
@@ -227,6 +229,31 @@ class TestDeleteUserAdmin:
             )
         ).one()
         assert entry.actor_id == admin_user.id
+
+
+class TestListUsers:
+    """Test the admin listing - deleted_at isn't exposed at the API level,
+    so a deleted user must be excluded rather than shown indistinguishably
+    from an active one."""
+
+    def test_an_active_user_is_listed(self, track_users: List[uuid.UUID]):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        listed_ids = {u.id for u in list_users(ListUsersRequest())}
+
+        assert user.id in listed_ids
+
+    def test_a_deleted_user_is_not_listed(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+        delete_user_admin(actor=admin_user, user_id=user.id)
+
+        listed_ids = {u.id for u in list_users(ListUsersRequest())}
+
+        assert user.id not in listed_ids
 
 
 class TestSetUserRole:
