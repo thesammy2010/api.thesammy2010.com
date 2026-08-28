@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from src.common import UserRole
 from src.schemas.utils import PaginationParams
@@ -13,13 +13,22 @@ class UpdateUserRoleRequest(BaseModel):
 
 
 class CreateUserRequest(BaseModel):
-    google_account_id: str
-    role: UserRole = UserRole.GUEST
-    # Optional labels so a pre-provisioned account isn't blank in the admin
-    # list until the person actually signs in - overwritten with whatever
-    # the real Google account says the first time they do.
+    """Either identifier works: google_account_id if an admin somehow
+    already has it, or just email - the far more common case, since an
+    admin knows who they want to invite by email, not by their opaque
+    Google account id. An email-only row is claimed automatically (its
+    google_account_id filled in) the first time that person signs in."""
+
+    google_account_id: Optional[str] = None
     email: Optional[str] = None
     name: Optional[str] = None
+    role: UserRole = UserRole.GUEST
+
+    @model_validator(mode="after")
+    def _require_an_identifier(self) -> "CreateUserRequest":
+        if not self.google_account_id and not self.email:
+            raise ValueError("Provide a google_account_id, an email, or both")
+        return self
 
 
 class ListUsersRequest(PaginationParams):

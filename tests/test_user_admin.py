@@ -10,6 +10,7 @@ import uuid
 from typing import Iterator, List
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
@@ -24,7 +25,7 @@ from src.resolvers.users import (
     list_users,
     set_user_role,
 )
-from src.schemas.users import ListUsersRequest
+from src.schemas.users import CreateUserRequest, ListUsersRequest
 
 
 @pytest.fixture
@@ -59,6 +60,10 @@ def admin_user(track_users: List[uuid.UUID]) -> User:
 
 def google_account_id() -> str:
     return f"test-{uuid.uuid4()}"
+
+
+def email_address() -> str:
+    return f"test-{uuid.uuid4()}@example.com"
 
 
 class TestProvisioning:
@@ -282,6 +287,118 @@ class TestCreateUserAdmin:
         assert entry.action == "created"
         assert entry.actor_id == admin_user.id
         assert entry.new_role == UserRole.EDITOR.value
+
+    def test_an_admin_can_pre_provision_by_email_alone(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_admin(
+            actor=admin_user, role=UserRole.VIEWER, email=email_address()
+        )
+        track_users.append(user.id)
+
+        assert user.google_account_id is None
+
+    def test_pre_provisioning_conflicts_on_a_matching_active_email_too(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        email = email_address()
+        existing = create_user_in_db({"sub": google_account_id(), "email": email})
+        track_users.append(existing.id)
+
+        result = create_user_admin(actor=admin_user, role=UserRole.VIEWER, email=email)
+
+        assert result is None
+
+
+class TestClaimByEmail:
+    """Test that a first sign-in claims a matching email-only placeholder
+    instead of creating a second, default-GUEST row."""
+
+    def test_signing_in_claims_a_matching_placeholder(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        email = email_address()
+        placeholder = create_user_admin(
+            actor=admin_user, role=UserRole.EDITOR, email=email
+        )
+        track_users.append(placeholder.id)
+
+        signed_in = create_user_in_db(
+            {"sub": google_account_id(), "email": email, "name": "Real Name"}
+        )
+
+        assert signed_in.id == placeholder.id
+
+    def test_claiming_keeps_the_role_the_admin_set(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        email = email_address()
+        placeholder = create_user_admin(
+            actor=admin_user, role=UserRole.EDITOR, email=email
+        )
+        track_users.append(placeholder.id)
+
+        signed_in = create_user_in_db(
+            {"sub": google_account_id(), "email": email, "name": "Real Name"}
+        )
+
+        assert signed_in.role == UserRole.EDITOR.value
+
+    def test_claiming_fills_in_the_google_account_id_and_name(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        email = email_address()
+        placeholder = create_user_admin(
+            actor=admin_user, role=UserRole.EDITOR, email=email, name="Guessed Name"
+        )
+        track_users.append(placeholder.id)
+        sub = google_account_id()
+
+        signed_in = create_user_in_db({"sub": sub, "email": email, "name": "Real Name"})
+
+        assert signed_in.google_account_id == sub
+        assert signed_in.name == "Real Name"
+
+    def test_claiming_writes_a_claimed_audit_log_entry(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        email = email_address()
+        placeholder = create_user_admin(
+            actor=admin_user, role=UserRole.EDITOR, email=email
+        )
+        track_users.append(placeholder.id)
+
+        create_user_in_db({"sub": google_account_id(), "email": email})
+
+        entry = (
+            session.query(UserAuditLog).where(
+                UserAuditLog.target_user_id == placeholder.id,
+                UserAuditLog.action == "claimed",
+            )
+        ).one()
+        assert entry.actor_id == placeholder.id
+
+    def test_signing_in_with_no_matching_placeholder_creates_a_new_guest_row(
+        self, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id(), "email": email_address()})
+        track_users.append(user.id)
+
+        assert user.role == UserRole.GUEST.value
+
+
+class TestCreateUserRequestValidation:
+    """CreateUserRequest needs at least one way to identify who it's for."""
+
+    def test_neither_google_account_id_nor_email_is_rejected(self):
+        with pytest.raises(ValidationError):
+            CreateUserRequest(role=UserRole.GUEST)
+
+    def test_email_alone_is_accepted(self):
+        CreateUserRequest(role=UserRole.GUEST, email=email_address())
+
+    def test_google_account_id_alone_is_accepted(self):
+        CreateUserRequest(role=UserRole.GUEST, google_account_id=google_account_id())
 
 
 class TestDeleteUserAdmin:

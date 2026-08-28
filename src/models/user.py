@@ -13,14 +13,23 @@ from src.models import Base
 
 class User(Base):
     __tablename__ = "users"
-    # A google_account_id must be unique only among active (non-deleted)
-    # users - deleting a user frees up their google_account_id so they (or
+    # google_account_id/email must each be unique only among active
+    # (non-deleted) users - deleting a user frees both up so they (or
     # anyone re-provisioned under that identity) can sign up fresh, while
-    # the deleted row is kept around for its audit trail.
+    # the deleted row is kept around for its audit trail. Postgres treats
+    # NULLs as distinct from each other in a unique index, so any number
+    # of not-yet-claimed placeholders (google_account_id NULL) or
+    # never-signed-in accounts (email NULL) can coexist.
     __table_args__ = (
         Index(
             "uq_users_google_account_id_active",
             "google_account_id",
+            unique=True,
+            postgresql_where="deleted_at IS NULL",
+        ),
+        Index(
+            "uq_users_email_active",
+            "email",
             unique=True,
             postgresql_where="deleted_at IS NULL",
         ),
@@ -29,10 +38,15 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, server_default=func.gen_random_uuid(), nullable=False
     )
-    google_account_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    # NULL for a row an admin pre-provisioned by email alone, before the
+    # person has ever signed in - filled in the moment they do (see
+    # create_user_in_db's "claim" path).
+    google_account_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     # Refreshed from the Google ID token on every sign-in, so these track
     # whatever's currently on the Google account rather than a one-time
-    # snapshot. NULL until the person has actually signed in at least once.
+    # snapshot. email doubles as the lookup key for claiming a
+    # pre-provisioned placeholder, so it must be unique among active users
+    # the same way google_account_id is.
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     # One of guest/viewer/editor/admin (src.common.UserRole). Kept as a plain

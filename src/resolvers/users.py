@@ -3,7 +3,7 @@ import uuid
 from typing import Annotated, Any, Callable, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from src.common import ROLE_RANK, UserRole, require_auth
 from src.config import Config
@@ -45,29 +45,58 @@ def create_user_in_db(claims: Dict[str, str]) -> User:
     stamping last_signed_in_at either way - this is the choke point every
     authenticated request passes through (directly for POST /users, or via
     provision_current_user for everything else), so it doubles as "last
-    seen with a valid token"."""
+    seen with a valid token".
+
+    A first-time sign-in whose email matches an admin-provisioned,
+    not-yet-claimed placeholder (google_account_id still NULL) claims that
+    row instead of creating a new GUEST one, so the role the admin set for
+    them takes effect immediately.
+    """
+    sub = claims["sub"]
+    email = claims.get("email")
+    name = claims.get("name")
+
     existing_user = (
         session.query(User)
-        .where(User.google_account_id == claims["sub"], User.deleted_at.is_(None))
+        .where(User.google_account_id == sub, User.deleted_at.is_(None))
         .first()
     )
-    if not existing_user:
-        user = User(
-            google_account_id=claims["sub"],
-            email=claims.get("email"),
-            name=claims.get("name"),
-            last_signed_in_at=func.now(),
-        )
-        session.add(user)
-        session.flush()
-        _log_audit(actor_id=user.id, target_user_id=user.id, action="created")
+    if existing_user:
+        existing_user.email = email
+        existing_user.name = name
+        existing_user.last_signed_in_at = func.now()
         session.commit()
-        return user
-    existing_user.email = claims.get("email")
-    existing_user.name = claims.get("name")
-    existing_user.last_signed_in_at = func.now()
+        return existing_user
+
+    placeholder = (
+        session.query(User)
+        .where(
+            User.google_account_id.is_(None),
+            User.email == email,
+            User.deleted_at.is_(None),
+        )
+        .first()
+        if email
+        else None
+    )
+    if placeholder:
+        placeholder.google_account_id = sub
+        placeholder.name = name
+        placeholder.last_signed_in_at = func.now()
+        _log_audit(
+            actor_id=placeholder.id, target_user_id=placeholder.id, action="claimed"
+        )
+        session.commit()
+        return placeholder
+
+    user = User(
+        google_account_id=sub, email=email, name=name, last_signed_in_at=func.now()
+    )
+    session.add(user)
+    session.flush()
+    _log_audit(actor_id=user.id, target_user_id=user.id, action="created")
     session.commit()
-    return existing_user
+    return user
 
 
 def provision_current_user(
@@ -139,23 +168,30 @@ def list_users(request: ListUsersRequest) -> List[User]:
 
 def create_user_admin(
     actor: User,
-    google_account_id: str,
     role: UserRole,
+    google_account_id: Optional[str] = None,
     email: Optional[str] = None,
     name: Optional[str] = None,
 ) -> Optional[User]:
-    """Pre-provisions a specific Google account with a starting role.
+    """Pre-provisions a user by google_account_id, email, or both.
 
-    Lets an admin invite someone before they've ever signed in, so their
-    first request lands on an already-configured row instead of GUEST.
-    email/name are just labels for the admin list until the real ones
-    arrive with their first sign-in. Returns None if an active user for
-    that account already exists.
+    Email is the identifier an admin actually has - they invite someone by
+    email, not by an opaque Google account id - so an email-only row is
+    left with google_account_id NULL and claimed automatically the first
+    time that person signs in (see create_user_in_db), at which point their
+    real email/name overwrite whatever was given here. Returns None if an
+    active user already exists for either identifier given.
     """
+    conditions = [
+        condition
+        for condition, value in (
+            (User.google_account_id == google_account_id, google_account_id),
+            (User.email == email, email),
+        )
+        if value
+    ]
     existing_user = (
-        session.query(User)
-        .where(User.google_account_id == google_account_id, User.deleted_at.is_(None))
-        .first()
+        session.query(User).where(User.deleted_at.is_(None), or_(*conditions)).first()
     )
     if existing_user:
         return None
