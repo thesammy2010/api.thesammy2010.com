@@ -41,18 +41,24 @@ def find_user_by_claims(claims: Dict[str, str]) -> Optional[User]:
 
 
 def create_user_in_db(claims: Dict[str, str]) -> User:
+    """Get-or-create by google_account_id, and stamp last_signed_in_at
+    either way - this is the choke point every authenticated request
+    passes through (directly for POST /users, or via provision_current_user
+    for everything else), so it doubles as "last seen with a valid token"."""
     existing_user = (
         session.query(User)
         .where(User.google_account_id == claims["sub"], User.deleted_at.is_(None))
         .first()
     )
     if not existing_user:
-        user = User(google_account_id=claims["sub"])
+        user = User(google_account_id=claims["sub"], last_signed_in_at=func.now())
         session.add(user)
         session.flush()
         _log_audit(actor_id=user.id, target_user_id=user.id, action="created")
         session.commit()
         return user
+    existing_user.last_signed_in_at = func.now()
+    session.commit()
     return existing_user
 
 

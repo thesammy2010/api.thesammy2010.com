@@ -1,3 +1,5 @@
+from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -27,3 +29,10 @@ class UserResponse(BaseModel):
 
     id: UUID
     role: UserRole
+
+
+class AdminUserResponse(UserResponse):
+    """UserResponse plus the activity fields only an admin needs to see."""
+
+    created_at: datetime
+    last_signed_in_at: Optional[datetime] = None

@@ -19,6 +19,7 @@ from src.resolvers.users import (
     set_user_role,
 )
 from src.schemas.users import (
+    AdminUserResponse,
     CreateUserRequest,
     ListUsersRequest,
     UpdateUserRoleRequest,
@@ -109,7 +110,7 @@ def get_endpoint_roles(request: Request) -> Dict[str, Dict[str, Optional[UserRol
     return endpoints
 
 
-@admin_router.get("/admin/users", response_model=List[UserResponse])
+@admin_router.get("/admin/users", response_model=List[AdminUserResponse])
 async def admin_list_users(
     actor: Annotated[User, Depends(require_admin)],
     request: Annotated[ListUsersRequest, Query()],
@@ -118,10 +119,10 @@ async def admin_list_users(
     return list_users(request)
 
 
-@admin_router.post("/admin/users", response_model=UserResponse)
+@admin_router.post("/admin/users", response_model=AdminUserResponse)
 async def admin_create_user(
     actor: Annotated[User, Depends(require_admin)], request: CreateUserRequest
-) -> UserResponse:
+) -> AdminUserResponse:
     """Pre-provisions a Google account with a starting role, before that
     person has ever signed in. 409 if an active user for that account
     already exists."""
@@ -133,12 +134,12 @@ async def admin_create_user(
     return user
 
 
-@admin_router.patch("/users/{user_id}/role", response_model=UserResponse)
+@admin_router.patch("/users/{user_id}/role", response_model=AdminUserResponse)
 async def update_user_role(
     actor: Annotated[User, Depends(require_admin)],
     user_id: uuid.UUID,
     request: UpdateUserRoleRequest,
-) -> UserResponse:
+) -> AdminUserResponse:
     """Sets a user's role, including an admin's own."""
     user = set_user_role(actor=actor, user_id=user_id, role=request.role)
     if not user:
@@ -146,10 +147,10 @@ async def update_user_role(
     return user
 
 
-@admin_router.delete("/users/{user_id}", response_model=UserResponse)
+@admin_router.delete("/users/{user_id}", response_model=AdminUserResponse)
 async def delete_user(
     actor: Annotated[User, Depends(require_admin)], user_id: uuid.UUID
-) -> UserResponse:
+) -> AdminUserResponse:
     """Soft-deletes a user: marks them deleted rather than removing the
     row, so their audit trail and anything they created stay intact. Their
     google_account_id becomes available for a fresh sign-up. 404 if they

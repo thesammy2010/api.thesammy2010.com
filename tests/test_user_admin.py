@@ -108,6 +108,25 @@ class TestProvisioning:
 
         assert find_user_by_claims({"sub": sub}) is None
 
+    def test_provisioning_sets_last_signed_in_at(self, track_users: List[uuid.UUID]):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        assert user.last_signed_in_at is not None
+
+    def test_signing_in_again_bumps_last_signed_in_at(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        first = create_user_in_db({"sub": sub})
+        track_users.append(first.id)
+        first_seen = first.last_signed_in_at
+
+        second = create_user_in_db({"sub": sub})
+
+        assert second.last_signed_in_at is not None
+        assert second.last_signed_in_at >= first_seen
+
     def test_signing_in_again_after_deletion_provisions_a_fresh_row(
         self, admin_user: User, track_users: List[uuid.UUID]
     ):
@@ -139,6 +158,20 @@ class TestCreateUserAdmin:
         track_users.append(user.id)
 
         assert user.role == UserRole.EDITOR.value
+
+    def test_pre_provisioning_leaves_last_signed_in_at_unset(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        """Nobody has actually signed in yet - only create_user_in_db,
+        the self-service path, stamps this."""
+        user = create_user_admin(
+            actor=admin_user,
+            google_account_id=google_account_id(),
+            role=UserRole.VIEWER,
+        )
+        track_users.append(user.id)
+
+        assert user.last_signed_in_at is None
 
     def test_pre_provisioning_an_already_active_account_returns_none(
         self, admin_user: User, track_users: List[uuid.UUID]

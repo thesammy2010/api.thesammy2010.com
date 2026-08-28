@@ -48,6 +48,13 @@ class User(Base):
     updated_at: Mapped[uuid.UUID] = mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()
     )
+    # Set whenever their token is resolved to this row (create_user_in_db),
+    # so it reflects the last time they authenticated, not just the last
+    # time they touched any endpoint. NULL for a row an admin pre-provisioned
+    # that nobody has signed into yet.
+    last_signed_in_at: Mapped[Optional[uuid.UUID]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, name={self.google_account_id})>"
