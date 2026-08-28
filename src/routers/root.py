@@ -1,8 +1,8 @@
 import logging
 import uuid
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.routing import APIRoute
 
 from src.common import UserRole, require_auth
@@ -12,12 +12,18 @@ from src.resolvers.users import (
     create_user_in_db,
     delete_user_admin,
     find_user_by_claims,
+    list_users,
     require_admin,
     require_editor,
     require_viewer,
     set_user_role,
 )
-from src.schemas.users import CreateUserRequest, UpdateUserRoleRequest, UserResponse
+from src.schemas.users import (
+    CreateUserRequest,
+    ListUsersRequest,
+    UpdateUserRoleRequest,
+    UserResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +92,15 @@ def get_endpoint_roles(request: Request) -> Dict[str, Dict[str, Optional[UserRol
         for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
             endpoints.setdefault(route.path, {})[method] = role
     return endpoints
+
+
+@router.get("/admin/users", response_model=List[UserResponse])
+async def admin_list_users(
+    actor: Annotated[User, Depends(require_admin)],
+    request: Annotated[ListUsersRequest, Query()],
+) -> List[User]:
+    """Lists every user, oldest first, deleted included. Admin-only."""
+    return list_users(request)
 
 
 @router.post("/admin/users", response_model=UserResponse)

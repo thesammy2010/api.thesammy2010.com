@@ -1,13 +1,15 @@
 import logging
 import uuid
-from typing import Annotated, Any, Callable, Dict, Optional
+from typing import Annotated, Any, Callable, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import func
 
 from src.common import ROLE_RANK, UserRole, require_auth
+from src.config import Config
 from src.db import session
 from src.models.user import User, UserAuditLog
+from src.schemas.users import ListUsersRequest
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +110,16 @@ def set_user_role(actor: User, user_id: uuid.UUID, role: UserRole) -> Optional[U
     )
     session.commit()
     return user
+
+
+def list_users(request: ListUsersRequest) -> List[User]:
+    return (
+        session.query(User)
+        .order_by(User.created_at)
+        .limit(Config.DEFAULT_DB_PAGE_SIZE)
+        .offset(request.offset)
+        .all()
+    )
 
 
 def create_user_admin(

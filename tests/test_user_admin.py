@@ -1,0 +1,324 @@
+"""Tests over user provisioning, admin management, and soft-delete.
+
+These run against a real database (see conftest.py in CI, or a local
+Postgres for `pytest` run by hand) rather than mocks, since the behaviour
+under test - the partial unique index, and the shared session picking up
+committed changes without a restart - only shows up against a real engine.
+"""
+
+import uuid
+from typing import Iterator, List
+
+import pytest
+from sqlalchemy import delete
+from sqlalchemy.exc import IntegrityError
+
+from src.common import UserRole
+from src.db import session
+from src.models.user import User, UserAuditLog
+from src.resolvers.users import (
+    create_user_admin,
+    create_user_in_db,
+    delete_user_admin,
+    find_user_by_claims,
+    set_user_role,
+)
+
+
+@pytest.fixture
+def track_users() -> Iterator[List[uuid.UUID]]:
+    """Deletes every user (and their audit log rows) created by a test.
+
+    The app's session is a single instance shared for the whole process
+    (see src/db.py), so tests can't rely on a per-test transaction to undo
+    what they wrote - they have to clean up explicitly instead.
+    """
+    ids: List[uuid.UUID] = []
+    yield ids
+    if ids:
+        session.execute(
+            delete(UserAuditLog).where(
+                UserAuditLog.actor_id.in_(ids) | UserAuditLog.target_user_id.in_(ids)
+            )
+        )
+        session.execute(delete(User).where(User.id.in_(ids)))
+        session.commit()
+
+
+@pytest.fixture
+def admin_user(track_users: List[uuid.UUID]) -> User:
+    """A real admin row to attribute audit log entries to."""
+    user = User(google_account_id=f"admin-{uuid.uuid4()}", role=UserRole.ADMIN.value)
+    session.add(user)
+    session.commit()
+    track_users.append(user.id)
+    return user
+
+
+def google_account_id() -> str:
+    return f"test-{uuid.uuid4()}"
+
+
+class TestProvisioning:
+    """Test create_user_in_db / find_user_by_claims, the self-service path."""
+
+    def test_a_new_google_account_is_provisioned_as_guest(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+
+        user = create_user_in_db({"sub": sub})
+        track_users.append(user.id)
+
+        assert user.role == UserRole.GUEST.value
+
+    def test_provisioning_the_same_account_twice_returns_one_row(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        first = create_user_in_db({"sub": sub})
+        track_users.append(first.id)
+
+        second = create_user_in_db({"sub": sub})
+
+        assert second.id == first.id
+
+    def test_provisioning_writes_a_created_audit_log_entry(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+
+        user = create_user_in_db({"sub": sub})
+        track_users.append(user.id)
+
+        entry = (
+            session.query(UserAuditLog).where(UserAuditLog.target_user_id == user.id)
+        ).one()
+        assert entry.action == "created"
+
+    def test_a_deleted_user_is_not_found_by_their_claims(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        user = create_user_in_db({"sub": sub})
+        track_users.append(user.id)
+        delete_user_admin(actor=admin_user, user_id=user.id)
+
+        assert find_user_by_claims({"sub": sub}) is None
+
+    def test_signing_in_again_after_deletion_provisions_a_fresh_row(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        """The deleted row is not revived - it stays deleted, and a new one
+        takes over the now-freed google_account_id."""
+        sub = google_account_id()
+        original = create_user_in_db({"sub": sub})
+        track_users.append(original.id)
+        delete_user_admin(actor=admin_user, user_id=original.id)
+
+        reprovisioned = create_user_in_db({"sub": sub})
+        track_users.append(reprovisioned.id)
+
+        assert reprovisioned.id != original.id
+        assert reprovisioned.role == UserRole.GUEST.value
+
+
+class TestCreateUserAdmin:
+    """Test the admin pre-provisioning endpoint's resolver."""
+
+    def test_an_admin_can_pre_provision_an_account_with_a_role(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+
+        user = create_user_admin(
+            actor=admin_user, google_account_id=sub, role=UserRole.EDITOR
+        )
+        track_users.append(user.id)
+
+        assert user.role == UserRole.EDITOR.value
+
+    def test_pre_provisioning_an_already_active_account_returns_none(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        existing = create_user_in_db({"sub": sub})
+        track_users.append(existing.id)
+
+        result = create_user_admin(
+            actor=admin_user, google_account_id=sub, role=UserRole.VIEWER
+        )
+
+        assert result is None
+
+    def test_pre_provisioning_after_the_prior_account_was_deleted_succeeds(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        original = create_user_in_db({"sub": sub})
+        track_users.append(original.id)
+        delete_user_admin(actor=admin_user, user_id=original.id)
+
+        reinvited = create_user_admin(
+            actor=admin_user, google_account_id=sub, role=UserRole.VIEWER
+        )
+        track_users.append(reinvited.id)
+
+        assert reinvited is not None
+        assert reinvited.id != original.id
+
+    def test_pre_provisioning_writes_a_created_audit_log_entry_with_the_role(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+
+        user = create_user_admin(
+            actor=admin_user, google_account_id=sub, role=UserRole.EDITOR
+        )
+        track_users.append(user.id)
+
+        entry = (
+            session.query(UserAuditLog).where(UserAuditLog.target_user_id == user.id)
+        ).one()
+        assert entry.action == "created"
+        assert entry.actor_id == admin_user.id
+        assert entry.new_role == UserRole.EDITOR.value
+
+
+class TestDeleteUserAdmin:
+    """Test soft-deletion: the row is marked, never removed."""
+
+    def test_deleting_sets_deleted_at_rather_than_removing_the_row(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        deleted = delete_user_admin(actor=admin_user, user_id=user.id)
+
+        assert deleted is not None
+        assert deleted.deleted_at is not None
+        assert session.get(User, user.id) is not None
+
+    def test_deleting_an_already_deleted_user_returns_none(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+        delete_user_admin(actor=admin_user, user_id=user.id)
+
+        assert delete_user_admin(actor=admin_user, user_id=user.id) is None
+
+    def test_deleting_an_unknown_user_returns_none(self, admin_user: User):
+        assert delete_user_admin(actor=admin_user, user_id=uuid.uuid4()) is None
+
+    def test_deleting_writes_a_deleted_audit_log_entry(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        delete_user_admin(actor=admin_user, user_id=user.id)
+
+        entry = (
+            session.query(UserAuditLog).where(
+                UserAuditLog.target_user_id == user.id,
+                UserAuditLog.action == "deleted",
+            )
+        ).one()
+        assert entry.actor_id == admin_user.id
+
+
+class TestSetUserRole:
+    """Test admin-driven role changes and their visibility/audit trail."""
+
+    def test_changing_role_updates_it(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        updated = set_user_role(actor=admin_user, user_id=user.id, role=UserRole.EDITOR)
+
+        assert updated.role == UserRole.EDITOR.value
+
+    def test_the_change_is_visible_without_a_restart(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        """Regression test for the staleness bug: the shared session must
+        not keep serving the pre-change role from its identity map."""
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        set_user_role(actor=admin_user, user_id=user.id, role=UserRole.EDITOR)
+
+        assert session.get(User, user.id).role == UserRole.EDITOR.value
+
+    def test_changing_role_of_an_unknown_user_returns_none(self, admin_user: User):
+        result = set_user_role(
+            actor=admin_user, user_id=uuid.uuid4(), role=UserRole.EDITOR
+        )
+
+        assert result is None
+
+    def test_changing_role_of_a_deleted_user_returns_none(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+        delete_user_admin(actor=admin_user, user_id=user.id)
+
+        result = set_user_role(actor=admin_user, user_id=user.id, role=UserRole.EDITOR)
+
+        assert result is None
+
+    def test_changing_role_writes_the_previous_and_new_role_to_the_audit_log(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        set_user_role(actor=admin_user, user_id=user.id, role=UserRole.EDITOR)
+
+        entry = (
+            session.query(UserAuditLog).where(
+                UserAuditLog.target_user_id == user.id,
+                UserAuditLog.action == "role_changed",
+            )
+        ).one()
+        assert entry.previous_role == UserRole.GUEST.value
+        assert entry.new_role == UserRole.EDITOR.value
+
+
+class TestGoogleAccountIdConstraint:
+    """Test the partial unique index backing the soft-delete design."""
+
+    def test_two_active_users_cannot_share_a_google_account_id(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        first = User(google_account_id=sub)
+        session.add(first)
+        session.commit()
+        track_users.append(first.id)
+
+        second = User(google_account_id=sub)
+        session.add(second)
+        with pytest.raises(IntegrityError):
+            session.commit()
+        session.rollback()
+
+    def test_a_deleted_and_an_active_user_can_share_a_google_account_id(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        original = create_user_in_db({"sub": sub})
+        track_users.append(original.id)
+        delete_user_admin(actor=admin_user, user_id=original.id)
+
+        replacement = User(google_account_id=sub)
+        session.add(replacement)
+        session.commit()
+        track_users.append(replacement.id)
+
+        assert replacement.id != original.id
