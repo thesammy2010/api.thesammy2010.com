@@ -8,14 +8,16 @@ from fastapi.routing import APIRoute
 from src.common import UserRole, require_auth
 from src.models.user import User
 from src.resolvers.users import (
+    create_user_admin,
     create_user_in_db,
+    delete_user_admin,
     find_user_by_claims,
     require_admin,
     require_editor,
     require_viewer,
     set_user_role,
 )
-from src.schemas.users import UpdateUserRoleRequest, UserResponse
+from src.schemas.users import CreateUserRequest, UpdateUserRoleRequest, UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -86,16 +88,43 @@ def get_endpoint_roles(request: Request) -> Dict[str, Dict[str, Optional[UserRol
     return endpoints
 
 
-@router.patch(
-    "/users/{user_id}/role",
-    response_model=UserResponse,
-    dependencies=[Depends(require_admin)],
-)
+@router.post("/admin/users", response_model=UserResponse)
+async def admin_create_user(
+    actor: Annotated[User, Depends(require_admin)], request: CreateUserRequest
+) -> UserResponse:
+    """Pre-provisions a Google account with a starting role, before that
+    person has ever signed in. Admin-only. 409 if an active user for that
+    account already exists."""
+    user = create_user_admin(
+        actor=actor, google_account_id=request.google_account_id, role=request.role
+    )
+    if not user:
+        raise HTTPException(status_code=409, detail="User already exists")
+    return user
+
+
+@router.patch("/users/{user_id}/role", response_model=UserResponse)
 async def update_user_role(
-    user_id: uuid.UUID, request: UpdateUserRoleRequest
+    actor: Annotated[User, Depends(require_admin)],
+    user_id: uuid.UUID,
+    request: UpdateUserRoleRequest,
 ) -> UserResponse:
     """Sets a user's role. Admin-only, including for an admin's own role."""
-    user = set_user_role(user_id=user_id, role=request.role)
+    user = set_user_role(actor=actor, user_id=user_id, role=request.role)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@router.delete("/users/{user_id}", response_model=UserResponse)
+async def delete_user(
+    actor: Annotated[User, Depends(require_admin)], user_id: uuid.UUID
+) -> UserResponse:
+    """Soft-deletes a user: marks them deleted rather than removing the
+    row, so their audit trail and anything they created stay intact.
+    Admin-only. Their google_account_id becomes available for a fresh
+    sign-up. 404 if they don't exist or are already deleted."""
+    user = delete_user_admin(actor=actor, user_id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
