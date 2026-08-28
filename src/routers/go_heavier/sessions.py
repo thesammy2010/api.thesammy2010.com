@@ -2,13 +2,14 @@ import logging
 import uuid
 from typing import Annotated, List
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from src.resolvers.go_heavier import sessions
 from src.resolvers.go_heavier.sessions import (
     LocationNotFound,
     SessionAlreadyExists,
 )
+from src.resolvers.users import require_editor, require_viewer
 from src.schemas.go_heavier.session_stats import (
     SessionStatsRequest,
     SessionStatsResponse,
@@ -25,15 +26,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/go-heavier", tags=["sessions"])
 
 
-@router.get("/sessions", response_model=List[SessionSummary])
+@router.get(
+    "/sessions",
+    response_model=List[SessionSummary],
+    dependencies=[Depends(require_viewer)],
+)
 async def get_sessions(
     request: Annotated[ListSessionsRequest, Query()],
 ) -> List[SessionSummary]:
+    """Lists sessions most recent first, optionally filtered."""
     return sessions.get_sessions(request=request)
 
 
-@router.post("/sessions", response_model=SessionResponse, status_code=201)
+@router.post(
+    "/sessions",
+    response_model=SessionResponse,
+    status_code=201,
+    dependencies=[Depends(require_editor)],
+)
 async def create_session(request: CreateSessionRequest) -> SessionResponse:
+    """Creates a session for a visit to a location at a given time.
+
+    The id is derived from the location and time (matching the sheet
+    load), so creating the same one twice 409s carrying the existing id
+    rather than making a duplicate.
+    """
     try:
         return sessions.create_session(request=request)
     except LocationNotFound as e:
@@ -48,16 +65,28 @@ async def create_session(request: CreateSessionRequest) -> SessionResponse:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/sessions/stats", response_model=SessionStatsResponse)
+@router.get(
+    "/sessions/stats",
+    response_model=SessionStatsResponse,
+    dependencies=[Depends(require_viewer)],
+)
 async def get_session_stats(
     request: Annotated[SessionStatsRequest, Query()],
 ) -> SessionStatsResponse:
+    """Aggregates across sessions, where `/sessions/{id}` aggregates
+    within one. Averages are taken per session rather than per set."""
     return sessions.get_session_stats(request=request)
 
 
 # Declared after /sessions/stats so that "stats" is not read as a session id
-@router.get("/sessions/{session_id}", response_model=SessionResponse)
+@router.get(
+    "/sessions/{session_id}",
+    response_model=SessionResponse,
+    dependencies=[Depends(require_viewer)],
+)
 async def get_session(session_id: Annotated[str, uuid.UUID]) -> SessionResponse:
+    """A single session, with a per-exercise breakdown ordered by the set
+    each exercise started on."""
     try:
         session_uuid = uuid.UUID(session_id)
     except ValueError:
@@ -71,7 +100,11 @@ async def get_session(session_id: Annotated[str, uuid.UUID]) -> SessionResponse:
     return workout_session
 
 
-@router.delete("/sessions/{session_id}", status_code=204)
+@router.delete(
+    "/sessions/{session_id}",
+    status_code=204,
+    dependencies=[Depends(require_editor)],
+)
 async def delete_session(session_id: Annotated[str, uuid.UUID]) -> Response:
     """Delete a session and every set logged against it."""
     try:
