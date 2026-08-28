@@ -127,7 +127,11 @@ async def admin_create_user(
     person has ever signed in. 409 if an active user for that account
     already exists."""
     user = create_user_admin(
-        actor=actor, google_account_id=request.google_account_id, role=request.role
+        actor=actor,
+        google_account_id=request.google_account_id,
+        role=request.role,
+        email=request.email,
+        name=request.name,
     )
     if not user:
         raise HTTPException(status_code=409, detail="User already exists")

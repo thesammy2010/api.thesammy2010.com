@@ -108,6 +108,35 @@ class TestProvisioning:
 
         assert find_user_by_claims({"sub": sub}) is None
 
+    def test_provisioning_stores_email_and_name_from_claims(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+
+        user = create_user_in_db(
+            {"sub": sub, "email": "ada@example.com", "name": "Ada Lovelace"}
+        )
+        track_users.append(user.id)
+
+        assert user.email == "ada@example.com"
+        assert user.name == "Ada Lovelace"
+
+    def test_signing_in_again_refreshes_email_and_name(
+        self, track_users: List[uuid.UUID]
+    ):
+        """The Google account is the source of truth, so a rename there
+        should be picked up on the next sign-in."""
+        sub = google_account_id()
+        create_user_in_db({"sub": sub, "email": "old@example.com", "name": "Old Name"})
+
+        updated = create_user_in_db(
+            {"sub": sub, "email": "new@example.com", "name": "New Name"}
+        )
+        track_users.append(updated.id)
+
+        assert updated.email == "new@example.com"
+        assert updated.name == "New Name"
+
     def test_provisioning_sets_last_signed_in_at(self, track_users: List[uuid.UUID]):
         user = create_user_in_db({"sub": google_account_id()})
         track_users.append(user.id)
@@ -172,6 +201,41 @@ class TestCreateUserAdmin:
         track_users.append(user.id)
 
         assert user.last_signed_in_at is None
+
+    def test_pre_provisioning_can_label_the_account_with_an_email_and_name(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_admin(
+            actor=admin_user,
+            google_account_id=google_account_id(),
+            role=UserRole.VIEWER,
+            email="invited@example.com",
+            name="Invited Person",
+        )
+        track_users.append(user.id)
+
+        assert user.email == "invited@example.com"
+        assert user.name == "Invited Person"
+
+    def test_signing_in_overwrites_the_admin_supplied_label(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        create_user_admin(
+            actor=admin_user,
+            google_account_id=sub,
+            role=UserRole.VIEWER,
+            email="guess@example.com",
+            name="Guessed Name",
+        )
+
+        signed_in = create_user_in_db(
+            {"sub": sub, "email": "real@example.com", "name": "Real Name"}
+        )
+        track_users.append(signed_in.id)
+
+        assert signed_in.email == "real@example.com"
+        assert signed_in.name == "Real Name"
 
     def test_pre_provisioning_an_already_active_account_returns_none(
         self, admin_user: User, track_users: List[uuid.UUID]

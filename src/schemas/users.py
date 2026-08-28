@@ -15,6 +15,11 @@ class UpdateUserRoleRequest(BaseModel):
 class CreateUserRequest(BaseModel):
     google_account_id: str
     role: UserRole = UserRole.GUEST
+    # Optional labels so a pre-provisioned account isn't blank in the admin
+    # list until the person actually signs in - overwritten with whatever
+    # the real Google account says the first time they do.
+    email: Optional[str] = None
+    name: Optional[str] = None
 
 
 class ListUsersRequest(PaginationParams):
@@ -32,7 +37,11 @@ class UserResponse(BaseModel):
 
 
 class AdminUserResponse(UserResponse):
-    """UserResponse plus the activity fields only an admin needs to see."""
+    """UserResponse plus the identifying/activity fields only an admin
+    needs to see - a bare id/role pair is unusable for picking someone
+    out of a list."""
 
+    email: Optional[str] = None
+    name: Optional[str] = None
     created_at: datetime
     last_signed_in_at: Optional[datetime] = None

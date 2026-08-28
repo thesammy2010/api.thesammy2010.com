@@ -30,6 +30,11 @@ class User(Base):
         primary_key=True, server_default=func.gen_random_uuid(), nullable=False
     )
     google_account_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Refreshed from the Google ID token on every sign-in, so these track
+    # whatever's currently on the Google account rather than a one-time
+    # snapshot. NULL until the person has actually signed in at least once.
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     # One of guest/viewer/editor/admin (src.common.UserRole). Kept as a plain
     # string rather than a DB enum, consistent with how the other enums in
     # this codebase are only validated at the API layer, not the DB layer.
@@ -57,7 +62,7 @@ class User(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<User(id={self.id}, name={self.google_account_id})>"
+        return f"<User(id={self.id}, google_account_id={self.google_account_id})>"
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

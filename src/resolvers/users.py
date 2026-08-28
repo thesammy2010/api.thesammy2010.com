@@ -41,22 +41,30 @@ def find_user_by_claims(claims: Dict[str, str]) -> Optional[User]:
 
 
 def create_user_in_db(claims: Dict[str, str]) -> User:
-    """Get-or-create by google_account_id, and stamp last_signed_in_at
-    either way - this is the choke point every authenticated request
-    passes through (directly for POST /users, or via provision_current_user
-    for everything else), so it doubles as "last seen with a valid token"."""
+    """Get-or-create by google_account_id, refreshing email/name and
+    stamping last_signed_in_at either way - this is the choke point every
+    authenticated request passes through (directly for POST /users, or via
+    provision_current_user for everything else), so it doubles as "last
+    seen with a valid token"."""
     existing_user = (
         session.query(User)
         .where(User.google_account_id == claims["sub"], User.deleted_at.is_(None))
         .first()
     )
     if not existing_user:
-        user = User(google_account_id=claims["sub"], last_signed_in_at=func.now())
+        user = User(
+            google_account_id=claims["sub"],
+            email=claims.get("email"),
+            name=claims.get("name"),
+            last_signed_in_at=func.now(),
+        )
         session.add(user)
         session.flush()
         _log_audit(actor_id=user.id, target_user_id=user.id, action="created")
         session.commit()
         return user
+    existing_user.email = claims.get("email")
+    existing_user.name = claims.get("name")
     existing_user.last_signed_in_at = func.now()
     session.commit()
     return existing_user
@@ -130,13 +138,19 @@ def list_users(request: ListUsersRequest) -> List[User]:
 
 
 def create_user_admin(
-    actor: User, google_account_id: str, role: UserRole
+    actor: User,
+    google_account_id: str,
+    role: UserRole,
+    email: Optional[str] = None,
+    name: Optional[str] = None,
 ) -> Optional[User]:
     """Pre-provisions a specific Google account with a starting role.
 
     Lets an admin invite someone before they've ever signed in, so their
     first request lands on an already-configured row instead of GUEST.
-    Returns None if an active user for that account already exists.
+    email/name are just labels for the admin list until the real ones
+    arrive with their first sign-in. Returns None if an active user for
+    that account already exists.
     """
     existing_user = (
         session.query(User)
@@ -145,7 +159,9 @@ def create_user_admin(
     )
     if existing_user:
         return None
-    user = User(google_account_id=google_account_id, role=role.value)
+    user = User(
+        google_account_id=google_account_id, role=role.value, email=email, name=name
+    )
     session.add(user)
     session.flush()
     _log_audit(
