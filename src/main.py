@@ -112,7 +112,8 @@ app.include_router(root.admin_router)
 
 # Every other router declares its own minimum role per-route (viewer to
 # read, editor to write), since a single blanket dependency can't tell
-# GET from POST/PUT/DELETE apart.
+# GET from POST/PUT/DELETE apart. Migrations is the exception - it can
+# overwrite real data from an external sheet, so it's admin-only.
 app.include_router(locations.router)
 app.include_router(exercises.router)
 app.include_router(workouts.router)

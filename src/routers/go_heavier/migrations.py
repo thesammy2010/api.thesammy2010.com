@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from src.resolvers.go_heavier import migrations
 from src.resolvers.go_heavier.migrations import MigrationConfigurationError
-from src.resolvers.users import require_editor
+from src.resolvers.users import require_admin
 from src.schemas.go_heavier.migrations import (
     RunMigrationRequest,
     RunMigrationResponse,
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/go-heavier", tags=["migrations"])
 @router.post(
     "/migrations",
     response_model=RunMigrationResponse,
-    dependencies=[Depends(require_editor)],
+    dependencies=[Depends(require_admin)],
 )
 def run_migration(request: RunMigrationRequest) -> RunMigrationResponse:
     """Upserts rows from the Go Heavier Google Sheet into the database.
