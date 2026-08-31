@@ -169,6 +169,17 @@ curl "localhost:8000/go-heavier/sessions?exercise_id=$EXERCISE_ID" | jq
 curl "localhost:8000/go-heavier/sessions/$SESSION_ID" | jq
 ```
 
+`PATCH /go-heavier/sessions/{session_id}` enriches a session with things that
+aren't known while it's being logged: `duration_minutes`, `calories_burned_kcal`,
+`took_preworkout`, `went_to_office`, `sleep_hours`, `bed_time`, and `sleep_score`.
+Only the fields given are changed.
+
+```bash
+curl -X PATCH "localhost:8000/go-heavier/sessions/$SESSION_ID" \
+  -H 'Content-Type: application/json' \
+  -d '{"duration_minutes": 52, "calories_burned_kcal": 297}' | jq
+```
+
 Deleting a session deletes every set logged against it. The sets belong to the
 session and carry neither a location nor a time of their own, so leaving them
 would leave rows that cannot be placed.

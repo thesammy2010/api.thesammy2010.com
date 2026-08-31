@@ -1,8 +1,9 @@
 import datetime
 import uuid
+from typing import Optional
 
 import pendulum
-from sqlalchemy import DateTime, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.schema import ForeignKey
 
@@ -24,6 +25,22 @@ class Session(Base):
     workout_time: Mapped[pendulum.DateTime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+
+    # Enrichment set separately via PATCH, once the session's sets are
+    # already logged - none of these are known while a session is being
+    # actively worked, only afterwards (from a watch/tracker, or the night
+    # before for the sleep fields).
+    duration_minutes: Mapped[Optional[int]] = mapped_column(Integer(), nullable=True)
+    calories_burned_kcal: Mapped[Optional[int]] = mapped_column(
+        Integer(), nullable=True
+    )
+    took_preworkout: Mapped[Optional[bool]] = mapped_column(Boolean(), nullable=True)
+    went_to_office: Mapped[Optional[bool]] = mapped_column(Boolean(), nullable=True)
+    sleep_hours: Mapped[Optional[float]] = mapped_column(Float(), nullable=True)
+    bed_time: Mapped[Optional[pendulum.DateTime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    sleep_score: Mapped[Optional[int]] = mapped_column(Integer(), nullable=True)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(), nullable=False, default=datetime.datetime.now

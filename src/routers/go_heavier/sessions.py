@@ -19,6 +19,7 @@ from src.schemas.go_heavier.sessions import (
     ListSessionsRequest,
     SessionResponse,
     SessionSummary,
+    UpdateSessionRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,29 @@ async def get_session(session_id: Annotated[str, uuid.UUID]) -> SessionResponse:
     if not workout_session:
         raise HTTPException(status_code=404, detail="Session not found")
     return workout_session
+
+
+@router.patch(
+    "/sessions/{session_id}",
+    response_model=SessionResponse,
+    dependencies=[Depends(require_editor)],
+)
+async def update_session(
+    session_id: Annotated[str, uuid.UUID], request: UpdateSessionRequest
+) -> SessionResponse:
+    """Sets enrichment fields (duration, calories, sleep, etc.) on a
+    session. Only the fields given in the body are changed."""
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail={"detail": "Invalid format for session id"},
+        )
+    updated = sessions.update_session(session_id=session_uuid, request=request)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return updated
 
 
 @router.delete(
