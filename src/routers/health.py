@@ -7,6 +7,9 @@ from typing import Any, Dict, Optional
 import pendulum
 from fastapi import APIRouter, Request
 
+from src.db import session
+from src.models.go_heavier import SleepRecord
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/health", tags=["default"])
@@ -69,13 +72,16 @@ def parse_sleep_summary(text: str) -> Dict[str, Any]:
 
 
 @router.post("/sleep")
-async def inspect_sleep_payload(request: Request) -> Dict[str, Any]:
-    """Temporary inspection endpoint for the Shortcuts sleep export while
-    its payload shape is still being figured out. No auth, and does not
-    write anything - logs and echoes back both the raw payload and, if it
-    has a "sleep" text field, the parsed result, so the parsing can be
-    checked against a real export before it's wired into session
-    enrichment.
+async def receive_sleep_export(request: Request) -> Dict[str, Any]:
+    """Receives a Shortcuts sleep export, parses it, and stores it.
+
+    Deliberately unauthenticated for now, since a Shortcut can't easily
+    carry a Google token - not meant to be exposed on production as-is.
+    A session is never looked up or written here: matching a stored
+    record onto a session happens the other way around, when
+    POST /go-heavier/sessions creates one (see
+    resolvers.go_heavier.sessions.create_session), since sleep data
+    normally arrives well before that day's session exists.
     """
     body = await request.body()
     try:
@@ -84,11 +90,22 @@ async def inspect_sleep_payload(request: Request) -> Dict[str, Any]:
         payload = body.decode("utf-8", errors="replace")
 
     parsed = None
+    record_id = None
     if isinstance(payload, dict) and isinstance(payload.get("sleep"), str):
         parsed = parse_sleep_summary(payload["sleep"])
+        if parsed["wake_time"] is not None:
+            record = SleepRecord(
+                bed_time=parsed["bed_time"],
+                wake_time=parsed["wake_time"],
+                sleep_hours=parsed["sleep_hours"],
+                stages_minutes=parsed["stages_minutes"] or None,
+            )
+            session.add(record)
+            session.commit()
+            record_id = record.id
 
     logger.warning(f"POST /health/sleep received: {payload}")
     if parsed is not None:
-        logger.warning(f"POST /health/sleep parsed: {parsed}")
+        logger.warning(f"POST /health/sleep parsed: {parsed} stored_as={record_id}")
 
-    return {"received": payload, "parsed": parsed}
+    return {"received": payload, "parsed": parsed, "stored_as": record_id}
