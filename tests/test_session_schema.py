@@ -11,6 +11,7 @@ from src.schemas.go_heavier.sessions import (
     SessionExerciseStats,
     SessionResponse,
     SessionSummary,
+    UpdateSessionRequest,
 )
 
 LOCATION_ID = uuid4()
@@ -59,6 +60,18 @@ class TestSessionSummary:
         summary = SessionSummary(**_payload(heaviest_weight_kg=-14.0))
 
         assert summary.heaviest_weight_kg == -14.0
+
+    def test_enrichment_fields_default_to_none(self):
+        """A session that has never been PATCHed with enrichment data."""
+        summary = SessionSummary(**_payload())
+
+        assert summary.duration_minutes is None
+        assert summary.calories_burned_kcal is None
+        assert summary.took_preworkout is None
+        assert summary.went_to_office is None
+        assert summary.sleep_hours is None
+        assert summary.bed_time is None
+        assert summary.sleep_score is None
 
 
 class TestSessionResponse:
@@ -161,6 +174,31 @@ class TestCreateSessionRequest:
                 location_id="not-a-uuid",
                 workout_time=datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc),
             )
+
+
+class TestUpdateSessionRequest:
+    """Test the PATCH body for enriching a session after the fact."""
+
+    def test_every_field_is_optional(self):
+        """A caller only ever sends the fields they actually have."""
+        request = UpdateSessionRequest()
+
+        assert request.duration_minutes is None
+        assert request.calories_burned_kcal is None
+        assert request.sleep_score is None
+
+    def test_only_the_given_fields_are_set(self):
+        request = UpdateSessionRequest(duration_minutes=52, calories_burned_kcal=297)
+
+        assert request.model_dump(exclude_unset=True) == {
+            "duration_minutes": 52,
+            "calories_burned_kcal": 297,
+        }
+
+    def test_a_naive_bed_time_is_made_timezone_aware(self):
+        request = UpdateSessionRequest(bed_time=datetime(2026, 9, 1, 23, 30))
+
+        assert request.bed_time == datetime(2026, 9, 1, 23, 30, tzinfo=timezone.utc)
 
 
 class TestEmptySession:

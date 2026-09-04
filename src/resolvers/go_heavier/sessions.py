@@ -24,11 +24,24 @@ from src.schemas.go_heavier.sessions import (
     SessionExerciseStats,
     SessionResponse,
     SessionSummary,
+    UpdateSessionRequest,
 )
 
 logger = logging.getLogger(__name__)
 
 # A session owns its sets, so the totals are an aggregate over the join.
+# The enrichment columns belong to the session itself, not the sets, but
+# still have to be listed (and grouped by) here since they're selected
+# alongside an aggregate.
+_ENRICHMENT_COLUMNS = (
+    DBSession.duration_minutes,
+    DBSession.calories_burned_kcal,
+    DBSession.took_preworkout,
+    DBSession.went_to_office,
+    DBSession.sleep_hours,
+    DBSession.bed_time,
+    DBSession.sleep_score,
+)
 _SUMMARY_COLUMNS = (
     DBSession.id,
     DBSession.workout_time,
@@ -39,12 +52,14 @@ _SUMMARY_COLUMNS = (
     func.sum(DBWorkout.repetitions).label("repetitions"),
     func.sum(DBWorkout.weight_kg * DBWorkout.repetitions).label("volume_kg"),
     func.max(DBWorkout.weight_kg).label("heaviest_weight_kg"),
+    *_ENRICHMENT_COLUMNS,
 )
 _GROUP_BY = (
     DBSession.id,
     DBSession.workout_time,
     DBSession.location_id,
     DBLocation.name,
+    *_ENRICHMENT_COLUMNS,
 )
 
 
@@ -70,6 +85,13 @@ def _to_summary(row) -> SessionSummary:
         repetitions=row.repetitions or 0,
         volume_kg=round(row.volume_kg or 0.0, 2),
         heaviest_weight_kg=row.heaviest_weight_kg,
+        duration_minutes=row.duration_minutes,
+        calories_burned_kcal=row.calories_burned_kcal,
+        took_preworkout=row.took_preworkout,
+        went_to_office=row.went_to_office,
+        sleep_hours=row.sleep_hours,
+        bed_time=row.bed_time,
+        sleep_score=row.sleep_score,
     )
 
 
@@ -334,6 +356,22 @@ def create_session(request: CreateSessionRequest) -> SessionResponse:
             updated_at=now,
         )
     )
+    session.commit()
+
+    return get_session(session_id=session_id)
+
+
+def update_session(
+    session_id: uuid.UUID, request: UpdateSessionRequest
+) -> Optional[SessionResponse]:
+    """Sets the enrichment fields given on the session, leaving any not
+    given untouched - a PATCH, not a replace."""
+    db_session = session.query(DBSession).filter(DBSession.id == session_id).first()
+    if not db_session:
+        return None
+
+    for field, value in request.model_dump(exclude_unset=True).items():
+        setattr(db_session, field, value)
     session.commit()
 
     return get_session(session_id=session_id)
