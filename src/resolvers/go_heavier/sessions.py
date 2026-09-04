@@ -3,6 +3,7 @@ import logging
 import uuid
 from typing import List, Optional
 
+import pendulum
 from sqlalchemy import distinct, func, select
 
 from src.config import Config
@@ -11,6 +12,7 @@ from src.migration_utils.session_ids import session_id_for
 from src.models.go_heavier import Exercise as DBExercise
 from src.models.go_heavier import Location as DBLocation
 from src.models.go_heavier import Session as DBSession
+from src.models.go_heavier import SleepRecord
 from src.models.go_heavier import Workout as DBWorkout
 from src.schemas.go_heavier.session_stats import (
     SessionHighlight,
@@ -327,12 +329,34 @@ class SessionAlreadyExists(ValueError):
         super().__init__(f"A session already exists with id {session_id}")
 
 
+def _find_matching_sleep_record(
+    workout_time: datetime.datetime,
+) -> Optional[SleepRecord]:
+    """The most recent not-yet-matched sleep record that woke on the same
+    UK calendar date as the session - "last night's sleep" pairs with
+    "today's gym session", even when bed_time was technically the day
+    before."""
+    session_date = pendulum.instance(workout_time).in_tz("Europe/London").date()
+    wake_date = func.date(func.timezone("Europe/London", SleepRecord.wake_time))
+
+    return (
+        session.query(SleepRecord)
+        .filter(SleepRecord.matched_session_id.is_(None), wake_date == session_date)
+        .order_by(SleepRecord.wake_time.desc())
+        .first()
+    )
+
+
 def create_session(request: CreateSessionRequest) -> SessionResponse:
     """Create a session to log sets against.
 
     The id is derived exactly as the sheet load derives it, so that a session
     created here and the same visit arriving from the sheet are one row rather
     than two competing for the unique constraint on the location and the time.
+
+    If a sleep record has already arrived for that day (see
+    routers.health.receive_sleep_export), it's matched onto the new session
+    automatically rather than requiring a separate PATCH.
     """
     location = (
         session.query(DBLocation).filter(DBLocation.id == request.location_id).first()
@@ -347,15 +371,22 @@ def create_session(request: CreateSessionRequest) -> SessionResponse:
         raise SessionAlreadyExists(session_id)
 
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    session.add(
-        DBSession(
-            id=session_id,
-            location_id=request.location_id,
-            workout_time=request.workout_time,
-            created_at=now,
-            updated_at=now,
-        )
+    db_session = DBSession(
+        id=session_id,
+        location_id=request.location_id,
+        workout_time=request.workout_time,
+        created_at=now,
+        updated_at=now,
     )
+    session.add(db_session)
+
+    sleep_record = _find_matching_sleep_record(request.workout_time)
+    if sleep_record:
+        db_session.bed_time = sleep_record.bed_time
+        db_session.sleep_hours = sleep_record.sleep_hours
+        db_session.sleep_score = sleep_record.sleep_score
+        sleep_record.matched_session_id = session_id
+
     session.commit()
 
     return get_session(session_id=session_id)

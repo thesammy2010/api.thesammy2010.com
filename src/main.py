@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.db import db_lock, session
-from src.routers import root
+from src.routers import health, root
 from src.routers.go_heavier import (
     config,
     exercises,
@@ -25,9 +25,10 @@ app = FastAPI(
         "the individual sets (workouts) logged during them, plus stats "
         "aggregated over each of those.\n\n"
         "### Authentication\n"
-        "Every endpoint except this documentation requires a Google "
-        "Sign-In ID token as a Bearer token. Click **Authorize** below and "
-        "paste the token (no need to type `Bearer` yourself).\n\n"
+        "Every endpoint except this documentation and `POST /health/sleep` "
+        "(a temporary, unauthenticated inspection endpoint) requires a "
+        "Google Sign-In ID token as a Bearer token. Click **Authorize** "
+        "below and paste the token (no need to type `Bearer` yourself).\n\n"
         "### Authorization\n"
         "Endpoints are gated by role - `guest` < `viewer` < `editor` < "
         "`admin`, each including everything the one below it can do, "
@@ -109,6 +110,12 @@ async def guard_shared_db_session(request: Request, call_next):
 # for a caller with a valid Google token who has no User row yet.
 app.include_router(root.router)
 app.include_router(root.admin_router)
+
+# Deliberately unauthenticated and temporary: a Shortcuts automation can't
+# easily carry a Google token, and this only logs what it's sent rather
+# than writing anything. Remove once the real session-enrichment mapping
+# replaces it.
+app.include_router(health.router)
 
 # Every other router declares its own minimum role per-route (viewer to
 # read, editor to write), since a single blanket dependency can't tell
