@@ -6,6 +6,13 @@ primary_region = "lhr"
   ignorefile = ".dockerignore"
   build-target = "production-stage"
 
+# Runs on a temporary machine built from the new image, before it takes
+# traffic. Without this, a deploy that adds columns ships code expecting a
+# schema the database hasn't got yet, and every query touching the changed
+# table 500s until someone runs alembic by hand.
+[deploy]
+  release_command = 'sh -c "cd /app && PYTHONPATH=/app /app/.venv/bin/alembic upgrade head"'
+
 
 [env]
   PORT = "8000"
