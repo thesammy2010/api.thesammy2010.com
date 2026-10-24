@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from typing import Optional
 
@@ -67,11 +68,12 @@ class User(Base):
     updated_at: Mapped[uuid.UUID] = mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()
     )
-    # Set whenever their token is resolved to this row (create_user_in_db),
-    # so it reflects the last time they authenticated, not just the last
-    # time they touched any endpoint. NULL for a row an admin pre-provisioned
+    # Set when their token is resolved to this row (create_user_in_db), so
+    # it reflects the last time they authenticated, to within
+    # LAST_SIGNED_IN_AT_PRECISION, not just the last time they touched any
+    # endpoint. NULL for a row an admin pre-provisioned
     # that nobody has signed into yet.
-    last_signed_in_at: Mapped[Optional[uuid.UUID]] = mapped_column(
+    last_signed_in_at: Mapped[Optional[datetime.datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
