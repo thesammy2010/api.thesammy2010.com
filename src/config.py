@@ -35,6 +35,10 @@ class Config:
         and ENVIRONMENT != Environment.PRODUCTION
     )
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
+    # The iOS app signs in through its own OAuth client, so its ID tokens
+    # carry this as their audience rather than GOOGLE_CLIENT_ID. Optional:
+    # unset, only tokens from the website are accepted.
+    GOOGLE_IOS_CLIENT_ID: Optional[str] = os.getenv("GOOGLE_IOS_CLIENT_ID") or None
     DEFAULT_DB_PAGE_SIZE: int = int(os.getenv("DEFAULT_DB_PAGE_SIZE", "50"))
     GOOGLE_SPREADSHEET_ID: str = os.getenv("GOOGLE_SPREADSHEET_ID")
     GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: str = os.getenv(

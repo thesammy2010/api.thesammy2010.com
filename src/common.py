@@ -1,6 +1,6 @@
 import enum
 import logging
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -38,10 +38,18 @@ ROLE_RANK: Dict[UserRole, int] = {
 }
 
 
+def accepted_audiences() -> List[str]:
+    """Every OAuth client whose ID tokens the API accepts: the website's,
+    plus the iOS app's when GOOGLE_IOS_CLIENT_ID is set."""
+    return [
+        client_id
+        for client_id in (Config.GOOGLE_CLIENT_ID, Config.GOOGLE_IOS_CLIENT_ID)
+        if client_id
+    ]
+
+
 def decode_token(token: str):
-    return id_token.verify_oauth2_token(
-        token, requests.Request(), Config.GOOGLE_CLIENT_ID
-    )
+    return id_token.verify_oauth2_token(token, requests.Request(), accepted_audiences())
 
 
 def require_auth(
