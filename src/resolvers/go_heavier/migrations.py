@@ -1,6 +1,8 @@
 import datetime
 import logging
-from typing import List, Sequence
+from typing import Dict, List, Sequence, Type
+
+from pydantic import BaseModel, ValidationError
 
 from src import db
 from src.config import Config
@@ -11,12 +13,16 @@ from src.migration_utils.google_sheets import (
     load_workouts_from_sheet,
 )
 from src.models import Base
+from src.schemas.go_heavier.exercises import ExerciseRequest
+from src.schemas.go_heavier.locations import LocationRequest
 from src.schemas.go_heavier.migrations import (
     MigrationTable,
     RunMigrationRequest,
     RunMigrationResponse,
     TableMigrationResult,
 )
+from src.schemas.go_heavier.sessions import CreateSessionRequest
+from src.schemas.go_heavier.workouts import UpdateWorkoutRequest
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +36,15 @@ MIGRATION_ORDER: Sequence[MigrationTable] = (
     MigrationTable.WORKOUTS,
 )
 
+# The schema the API validates each resource against when it is written, so
+# that the sheet cannot load a row the API would have rejected.
+ROW_SCHEMAS: Dict[MigrationTable, Type[BaseModel]] = {
+    MigrationTable.LOCATIONS: LocationRequest,
+    MigrationTable.EXERCISES: ExerciseRequest,
+    MigrationTable.SESSIONS: CreateSessionRequest,
+    MigrationTable.WORKOUTS: UpdateWorkoutRequest,
+}
+
 
 class MigrationConfigurationError(RuntimeError):
     """Raised when the migration cannot run because of missing configuration."""
@@ -41,6 +56,34 @@ class MigrationFailedError(RuntimeError):
     Carries the table name so that the router can log the whole failure in one
     line, rather than each layer logging its own half of it.
     """
+
+
+class MigrationValidationError(ValueError):
+    """Raised when rows from the sheet fail the API's validation."""
+
+    def __init__(self, table: MigrationTable, errors: List[str]):
+        self.table = table
+        self.errors = errors
+        super().__init__(
+            f"{len(errors)} {table.value} failed validation: " + "; ".join(errors)
+        )
+
+
+def _validate_rows(table: MigrationTable, rows: List[Base]) -> None:
+    """Check every row before any is written, reporting all the failures at once."""
+    schema = ROW_SCHEMAS[table]
+    errors: List[str] = []
+    for row in rows:
+        try:
+            schema.model_validate(row)
+        except ValidationError as e:
+            problems = ", ".join(
+                f"{'.'.join(str(loc) for loc in err['loc'])}: {err['msg']}"
+                for err in e.errors()
+            )
+            errors.append(f"{row.id} ({problems})")
+    if errors:
+        raise MigrationValidationError(table=table, errors=errors)
 
 
 def _load_rows(table: MigrationTable, request: RunMigrationRequest) -> List[Base]:
@@ -78,6 +121,7 @@ def run_migration(request: RunMigrationRequest) -> RunMigrationResponse:
         try:
             rows = _load_rows(table=table, request=request)
             logger.info(f"Loaded {len(rows)} {table.value} from the sheet")
+            _validate_rows(table=table, rows=rows)
 
             if request.dry_run:
                 results.append(
@@ -90,6 +134,9 @@ def run_migration(request: RunMigrationRequest) -> RunMigrationResponse:
                 row.updated_at = now
                 db.session.merge(row)
             db.session.commit()
+        except MigrationValidationError:
+            db.session.rollback()
+            raise
         except Exception as e:
             # The session is shared across requests, so it must not be left dirty
             db.session.rollback()
