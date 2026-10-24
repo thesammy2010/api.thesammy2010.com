@@ -6,6 +6,7 @@ under test - the partial unique index, and the shared session picking up
 committed changes without a restart - only shows up against a real engine.
 """
 
+import datetime
 import uuid
 from typing import Iterator, List
 
@@ -18,6 +19,7 @@ from src.common import UserRole
 from src.db import session
 from src.models.user import User, UserAuditLog
 from src.resolvers.users import (
+    LAST_SIGNED_IN_AT_PRECISION,
     create_user_admin,
     create_user_in_db,
     delete_user_admin,
@@ -160,6 +162,48 @@ class TestProvisioning:
 
         assert second.last_signed_in_at is not None
         assert second.last_signed_in_at >= first_seen
+
+    def test_signing_in_again_soon_after_does_not_write(
+        self, track_users: List[uuid.UUID]
+    ):
+        """Every request signs in, so a read must not become a write."""
+        sub = google_account_id()
+        first = create_user_in_db({"sub": sub})
+        track_users.append(first.id)
+        first_seen = first.last_signed_in_at
+
+        second = create_user_in_db({"sub": sub})
+
+        assert second.last_signed_in_at == first_seen
+        assert not session.dirty
+
+    def test_signing_in_again_once_stale_bumps_last_signed_in_at(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        user = create_user_in_db({"sub": sub})
+        track_users.append(user.id)
+        stale = datetime.datetime.now(tz=datetime.timezone.utc) - (
+            LAST_SIGNED_IN_AT_PRECISION + datetime.timedelta(minutes=1)
+        )
+        user.last_signed_in_at = stale
+        session.commit()
+
+        refreshed = create_user_in_db({"sub": sub})
+
+        assert refreshed.last_signed_in_at > stale
+
+    def test_a_changed_name_is_written_even_when_recently_signed_in(
+        self, track_users: List[uuid.UUID]
+    ):
+        sub = google_account_id()
+        create_user_in_db({"sub": sub, "name": "Old Name"})
+
+        updated = create_user_in_db({"sub": sub, "name": "New Name"})
+        track_users.append(updated.id)
+        session.expire(updated)
+
+        assert updated.name == "New Name"
 
     def test_signing_in_again_after_deletion_provisions_a_fresh_row(
         self, admin_user: User, track_users: List[uuid.UUID]

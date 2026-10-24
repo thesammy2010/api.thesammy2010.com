@@ -1,3 +1,4 @@
+import datetime
 import logging
 import uuid
 from typing import Annotated, Any, Callable, Dict, List, Optional
@@ -12,6 +13,11 @@ from src.models.user import User, UserAuditLog
 from src.schemas.users import ListUsersRequest
 
 logger = logging.getLogger(__name__)
+
+# How stale last_signed_in_at may get before a request refreshes it. Every
+# authenticated request resolves the caller here, so stamping it on each one
+# would turn every read into a write behind the shared session's lock.
+LAST_SIGNED_IN_AT_PRECISION = datetime.timedelta(minutes=5)
 
 
 def _log_audit(
@@ -40,12 +46,23 @@ def find_user_by_claims(claims: Dict[str, str]) -> Optional[User]:
     )
 
 
+def _needs_refresh(user: User, email: Optional[str], name: Optional[str]) -> bool:
+    if user.email != email or user.name != name:
+        return True
+    if user.last_signed_in_at is None:
+        return True
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    return now - user.last_signed_in_at >= LAST_SIGNED_IN_AT_PRECISION
+
+
 def create_user_in_db(claims: Dict[str, str]) -> User:
     """Get-or-create by google_account_id, refreshing email/name and
     stamping last_signed_in_at either way - this is the choke point every
     authenticated request passes through (directly for POST /users, or via
     provision_current_user for everything else), so it doubles as "last
-    seen with a valid token".
+    seen with a valid token". An existing user is only written to when
+    their email or name changed, or last_signed_in_at is older than
+    LAST_SIGNED_IN_AT_PRECISION, so it is accurate to within that.
 
     A first-time sign-in whose email matches an admin-provisioned,
     not-yet-claimed placeholder (google_account_id still NULL) claims that
@@ -62,6 +79,8 @@ def create_user_in_db(claims: Dict[str, str]) -> User:
         .first()
     )
     if existing_user:
+        if not _needs_refresh(existing_user, email=email, name=name):
+            return existing_user
         existing_user.email = email
         existing_user.name = name
         existing_user.last_signed_in_at = func.now()
