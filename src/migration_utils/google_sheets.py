@@ -73,10 +73,10 @@ def load_locations_from_sheet(cfg: Config = Config()) -> List[Location]:
     df["address_postal_code"] = df["address_postal_code"].astype(str)
     df["address_country_iso3"] = df["address_country_iso3"].astype(str)
     df["created_at"] = pandas.to_datetime(
-        df["created_at"].map(clean_datetime_string)
+        df["created_at"].map(clean_datetime_string), format="ISO8601"
     ).replace("", None)
     df["updated_at"] = pandas.to_datetime(
-        df["updated_at"].map(clean_datetime_string)
+        df["updated_at"].map(clean_datetime_string), format="ISO8601"
     ).replace("", None)
 
     for row in drop_unmapped_columns(df, Location).to_dict(orient="records"):

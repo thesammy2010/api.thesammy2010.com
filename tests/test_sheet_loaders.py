@@ -428,3 +428,45 @@ class TestNarrowingTheLoad:
 
         assert google_sheets.load_workouts_from_sheet(cfg=None, after=after) == []
         assert google_sheets.load_sessions_from_sheet(cfg=None, after=after) == []
+
+
+LOCATION_HEADER = [
+    "id",
+    "name",
+    "description",
+    "address_line1",
+    "address_line2",
+    "address_city",
+    "address_postal_code",
+    "address_country_iso3",
+    "created_at",
+    "updated_at",
+]
+
+
+def location_row(row_id: uuid.UUID, name: str, timestamp: str) -> list:
+    return [str(row_id), name, "", "", "", "London", "", "GBR", timestamp, timestamp]
+
+
+class TestLoadLocations:
+    """Test building the locations out of the sheet."""
+
+    def test_timestamps_with_differing_precision_all_parse(self, monkeypatch):
+        """Pandas infers one format from the first row unless told otherwise."""
+        sheet = FakeWorksheet(
+            [
+                LOCATION_HEADER,
+                location_row(GYM, "Gym", "2025-10-07T18:11:05.123Z"),
+                location_row(OTHER_GYM, "Other", "2026-10-24T15:52:00Z"),
+            ]
+        )
+        monkeypatch.setattr(google_sheets, "get_locations", lambda cfg=None: sheet)
+
+        gym, other = google_sheets.load_locations_from_sheet(cfg=None)
+
+        assert gym.created_at == datetime.datetime(
+            2025, 10, 7, 18, 11, 5, 123000, tzinfo=datetime.timezone.utc
+        )
+        assert other.created_at == datetime.datetime(
+            2026, 10, 24, 15, 52, tzinfo=datetime.timezone.utc
+        )
