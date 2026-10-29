@@ -62,16 +62,19 @@ class TestSessionSummary:
         assert summary.heaviest_weight_kg == -14.0
 
     def test_enrichment_fields_default_to_none(self):
-        """A session that has never been PATCHed with enrichment data."""
+        """A session that has never been PATCHed."""
         summary = SessionSummary(**_payload())
 
-        assert summary.duration_minutes is None
-        assert summary.calories_burned_kcal is None
         assert summary.took_preworkout is None
         assert summary.went_to_office is None
-        assert summary.sleep_hours is None
-        assert summary.bed_time is None
-        assert summary.sleep_score is None
+
+    def test_health_fields_are_no_longer_on_a_session(self):
+        """Sleep, duration and calories come from Apple Health now, under
+        /go-heavier/health, and are dropped if sent."""
+        summary = SessionSummary(**_payload(sleep_score=80, duration_minutes=50))
+
+        assert "sleep_score" not in summary.model_dump()
+        assert "duration_minutes" not in summary.model_dump()
 
 
 class TestSessionResponse:
@@ -177,28 +180,19 @@ class TestCreateSessionRequest:
 
 
 class TestUpdateSessionRequest:
-    """Test the PATCH body for enriching a session after the fact."""
+    """Test the PATCH body for details added to a session after the fact."""
 
     def test_every_field_is_optional(self):
         """A caller only ever sends the fields they actually have."""
         request = UpdateSessionRequest()
 
-        assert request.duration_minutes is None
-        assert request.calories_burned_kcal is None
-        assert request.sleep_score is None
+        assert request.took_preworkout is None
+        assert request.went_to_office is None
 
     def test_only_the_given_fields_are_set(self):
-        request = UpdateSessionRequest(duration_minutes=52, calories_burned_kcal=297)
+        request = UpdateSessionRequest(took_preworkout=True)
 
-        assert request.model_dump(exclude_unset=True) == {
-            "duration_minutes": 52,
-            "calories_burned_kcal": 297,
-        }
-
-    def test_a_naive_bed_time_is_made_timezone_aware(self):
-        request = UpdateSessionRequest(bed_time=datetime(2026, 9, 1, 23, 30))
-
-        assert request.bed_time == datetime(2026, 9, 1, 23, 30, tzinfo=timezone.utc)
+        assert request.model_dump(exclude_unset=True) == {"took_preworkout": True}
 
 
 class TestEmptySession:

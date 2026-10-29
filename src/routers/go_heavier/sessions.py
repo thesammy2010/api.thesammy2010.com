@@ -109,8 +109,9 @@ async def get_session(session_id: Annotated[str, uuid.UUID]) -> SessionResponse:
 async def update_session(
     session_id: Annotated[str, uuid.UUID], request: UpdateSessionRequest
 ) -> SessionResponse:
-    """Sets enrichment fields (duration, calories, sleep, etc.) on a
-    session. Only the fields given in the body are changed."""
+    """Sets details that aren't known while the session is being logged
+    (took_preworkout, went_to_office). Only the fields given in the body
+    are changed."""
     try:
         session_uuid = uuid.UUID(session_id)
     except ValueError:
