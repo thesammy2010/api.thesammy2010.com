@@ -7,6 +7,7 @@ from src.routers import root
 from src.routers.go_heavier import (
     config,
     exercises,
+    health,
     locations,
     migrations,
     sessions,
@@ -56,6 +57,14 @@ app = FastAPI(
             ),
         },
         {"name": "workouts", "description": "Individual logged sets."},
+        {
+            "name": "health",
+            "description": (
+                "Apple Health data sent by the iOS app: watch workouts, each "
+                "linked to the session it was recorded during, and each day's "
+                "sleep and body measurements."
+            ),
+        },
         {
             "name": "migrations",
             "description": (
@@ -120,3 +129,4 @@ app.include_router(workouts.router)
 app.include_router(config.router)
 app.include_router(migrations.router)
 app.include_router(sessions.router)
+app.include_router(health.router)

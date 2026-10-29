@@ -30,7 +30,15 @@ class TestRouting:
         assert {"go-heavier", "users", "config"} <= prefixes
 
     @pytest.mark.parametrize(
-        "resource", ["locations", "exercises", "workouts", "sessions"]
+        "resource",
+        [
+            "locations",
+            "exercises",
+            "workouts",
+            "sessions",
+            "health/workouts",
+            "health/days",
+        ],
     )
     def test_every_go_heavier_resource_is_reachable(self, resource: str):
         paths = {route.path for route in ROUTES}

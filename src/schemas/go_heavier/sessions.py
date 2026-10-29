@@ -57,31 +57,14 @@ class _BaseSession(BaseModel):
         "while nothing has been logged against it yet",
         default=None,
     )
-    duration_minutes: Optional[int] = Field(
-        description="How long the session lasted, in minutes", default=None
-    )
-    calories_burned_kcal: Optional[int] = Field(
-        description="Calories burned during the session, in kcal", default=None
-    )
     took_preworkout: Optional[bool] = Field(
         description="Whether pre-workout was taken that day", default=None
     )
     went_to_office: Optional[bool] = Field(
         description="Whether the caller went into the office that day", default=None
     )
-    sleep_hours: Optional[float] = Field(
-        description="Hours slept the night before", default=None
-    )
-    bed_time: Optional[AwareDatetime] = Field(
-        description="What time the caller went to bed the night before",
-        default=None,
-    )
-    sleep_score: Optional[int] = Field(
-        description="Sleep score from Apple Health for the night before",
-        default=None,
-    )
 
-    @field_validator("workout_time", "bed_time", mode="before")
+    @field_validator("workout_time", mode="before")
     @classmethod
     def ensure_timezone_aware(cls, value):
         """Convert naive datetimes to timezone-aware datetimes (UTC)"""
@@ -117,45 +100,19 @@ class CreateSessionRequest(BaseModel):
 
 
 class UpdateSessionRequest(BaseModel):
-    """Enrichment for a session, set separately from its sets - typically
-    afterwards, once a duration/calorie figure or the previous night's sleep
-    data is available. Every field is optional and only the ones given are
-    changed; the rest are left as they were."""
+    """Details of a session that aren't known while its sets are being
+    logged. Every field is optional and only the ones given are changed; the
+    rest are left as they were. Apple Health data is in /go-heavier/health
+    rather than here."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    duration_minutes: Optional[int] = Field(
-        description="How long the session lasted, in minutes", default=None
-    )
-    calories_burned_kcal: Optional[int] = Field(
-        description="Calories burned during the session, in kcal", default=None
-    )
     took_preworkout: Optional[bool] = Field(
         description="Whether pre-workout was taken that day", default=None
     )
     went_to_office: Optional[bool] = Field(
         description="Whether the caller went into the office that day", default=None
     )
-    sleep_hours: Optional[float] = Field(
-        description="Hours slept the night before", default=None
-    )
-    bed_time: Optional[AwareDatetime] = Field(
-        description="What time the caller went to bed the night before",
-        default=None,
-    )
-    sleep_score: Optional[int] = Field(
-        description="Sleep score from Apple Health for the night before",
-        default=None,
-    )
-
-    @field_validator("bed_time", mode="before")
-    @classmethod
-    def ensure_timezone_aware(cls, value):
-        if value is None:
-            return None
-        if isinstance(value, datetime.datetime) and value.tzinfo is None:
-            return value.replace(tzinfo=datetime.timezone.utc)
-        return value
 
 
 class SessionSummary(_BaseSession):

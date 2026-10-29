@@ -169,15 +169,14 @@ curl "localhost:8000/go-heavier/sessions?exercise_id=$EXERCISE_ID" | jq
 curl "localhost:8000/go-heavier/sessions/$SESSION_ID" | jq
 ```
 
-`PATCH /go-heavier/sessions/{session_id}` enriches a session with things that
-aren't known while it's being logged: `duration_minutes`, `calories_burned_kcal`,
-`took_preworkout`, `went_to_office`, `sleep_hours`, `bed_time`, and `sleep_score`.
-Only the fields given are changed.
+`PATCH /go-heavier/sessions/{session_id}` adds things that aren't known while
+a session is being logged: `took_preworkout` and `went_to_office`. Only the
+fields given are changed.
 
 ```bash
 curl -X PATCH "localhost:8000/go-heavier/sessions/$SESSION_ID" \
   -H 'Content-Type: application/json' \
-  -d '{"duration_minutes": 52, "calories_burned_kcal": 297}' | jq
+  -d '{"took_preworkout": true}' | jq
 ```
 
 Deleting a session deletes every set logged against it. The sets belong to the
@@ -230,6 +229,34 @@ local time, Monday first, and omits days with no sessions.
 
 Note that the route is declared before `/sessions/{session_id}` in the router, so
 that `stats` is not matched as a session id.
+
+### Apple Health
+
+The iOS app reads Apple Health and sends two things, each keyed so it can be
+sent any number of times:
+
+- **Workouts** recorded by a watch, `PUT /go-heavier/health/workouts/{id}`,
+  where the id is the HealthKit workout's UUID. Duration, calories, average
+  /min/max heart rate, METs, the effort rating and every heart rate reading
+  (`heart_rate`, `[seconds since start, bpm]` pairs, a JSONB column).
+- **Days**, `PUT /go-heavier/health/days/{date}`: the night's sleep by stage
+  (dated the day it was woken up on), resting heart rate, HRV, VO2 max, weight
+  and body fat, steps.
+
+A workout is linked to the session it was recorded during: the one whose
+`workout_time` is between two hours before the workout started and when it
+ended, nearest the start, that no other workout already has. Workouts under
+five minutes, started by accident, are never matched. Matching runs when a
+workout arrives and when a session is created, so either can come first.
+`PATCH /go-heavier/health/workouts/{id}` with a `session_id` (or `null`) links
+one by hand, and matching leaves it alone after that. Deleting a session
+unlinks its workout.
+
+```bash
+curl "localhost:8000/go-heavier/health/workouts?session_id=$SESSION_ID" | jq   # no readings
+curl "localhost:8000/go-heavier/health/workouts/$WORKOUT_ID" | jq              # with readings
+curl "localhost:8000/go-heavier/health/days?after=2026-10-01" | jq
+```
 
 ### Loading data from the Google Sheet
 
