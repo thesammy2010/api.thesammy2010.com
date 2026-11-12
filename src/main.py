@@ -4,6 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.db import db_lock, session
 from src.routers import root
+from src.routers.finance import budgets as finance_budgets
+from src.routers.finance import migrations as finance_migrations
+from src.routers.finance import references as finance_references
+from src.routers.finance import transactions as finance_transactions
 from src.routers.go_heavier import (
     config,
     exercises,
@@ -24,7 +28,8 @@ app = FastAPI(
         "Backend for TheSammy2010 apps. Currently covers **Go Heavier**, a "
         "personal gym-session tracker: locations, exercises, sessions, and "
         "the individual sets (workouts) logged during them, plus stats "
-        "aggregated over each of those.\n\n"
+        "aggregated over each of those. Also **Finance**, a record of "
+        "personal spending, under `/finance`, which is `admin`-only.\n\n"
         "### Authentication\n"
         "Every endpoint except this documentation requires a Google "
         "Sign-In ID token as a Bearer token. Click **Authorize** below and "
@@ -68,7 +73,26 @@ app = FastAPI(
         {
             "name": "migrations",
             "description": (
-                "Loads Go Heavier data from its source Google Sheet into the database."
+                "Loads Go Heavier and Finance data from their source Google "
+                "Sheets into the database."
+            ),
+        },
+        {
+            "name": "transactions",
+            "description": "Finance: individual spends. Admin-only.",
+        },
+        {
+            "name": "finance reference data",
+            "description": (
+                "Finance: the categories, merchants and payment methods a spend "
+                "refers to. Admin-only."
+            ),
+        },
+        {
+            "name": "budgets",
+            "description": (
+                "Finance: each category's monthly target, and a month's spending "
+                "against them. Admin-only."
             ),
         },
         {
@@ -122,7 +146,8 @@ app.include_router(root.admin_router)
 # Every other router declares its own minimum role per-route (viewer to
 # read, editor to write), since a single blanket dependency can't tell
 # GET from POST/PUT/DELETE apart. Migrations is the exception - it can
-# overwrite real data from an external sheet, so it's admin-only.
+# overwrite real data from an external sheet, so it's admin-only. The
+# finance routers are admin-only throughout, set on each router.
 app.include_router(locations.router)
 app.include_router(exercises.router)
 app.include_router(workouts.router)
@@ -130,3 +155,7 @@ app.include_router(config.router)
 app.include_router(migrations.router)
 app.include_router(sessions.router)
 app.include_router(health.router)
+app.include_router(finance_transactions.router)
+app.include_router(finance_references.router)
+app.include_router(finance_budgets.router)
+app.include_router(finance_migrations.router)

@@ -10,7 +10,9 @@ from collections import Counter
 import pytest
 from fastapi.routing import APIRoute
 
+from src.common import UserRole
 from src.main import app
+from src.routers.root import _required_role
 
 ROUTES = [route for route in app.routes if isinstance(route, APIRoute)]
 PATH_PARAMETER = re.compile(r"\{[^}]+\}")
@@ -27,7 +29,7 @@ class TestRouting:
         """A router that is written but never included is silently absent."""
         prefixes = {route.path.split("/")[1] for route in ROUTES}
 
-        assert {"go-heavier", "users", "config"} <= prefixes
+        assert {"go-heavier", "users", "config", "finance"} <= prefixes
 
     @pytest.mark.parametrize(
         "resource",
@@ -44,6 +46,35 @@ class TestRouting:
         paths = {route.path for route in ROUTES}
 
         assert f"/go-heavier/{resource}" in paths
+
+    @pytest.mark.parametrize(
+        "resource",
+        [
+            "transactions",
+            "categories",
+            "merchants",
+            "payment-methods",
+            "budgets",
+            "stats/monthly",
+            "migrations",
+        ],
+    )
+    def test_every_finance_resource_is_reachable(self, resource: str):
+        paths = {route.path for route in ROUTES}
+
+        assert f"/finance/{resource}" in paths
+
+    def test_every_finance_route_is_admin_only(self):
+        """Spending is private, so not even a viewer can read it."""
+        finance = [route for route in ROUTES if route.path.startswith("/finance/")]
+        not_admin = [
+            route_ids(route)
+            for route in finance
+            if _required_role(route) != UserRole.ADMIN
+        ]
+
+        assert finance
+        assert not_admin == []
 
     def test_no_two_routes_share_a_method_and_path(self):
         """A duplicate is unreachable: the first declared one always wins."""
@@ -122,6 +153,8 @@ class TestOpenApi:
             ("/go-heavier/sessions", "post"),
             ("/go-heavier/workouts", "post"),
             ("/go-heavier/migrations", "post"),
+            ("/finance/transactions", "post"),
+            ("/finance/migrations", "post"),
         ],
     )
     def test_the_write_endpoints_document_a_body(self, path: str, method: str):

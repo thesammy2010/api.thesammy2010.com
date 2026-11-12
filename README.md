@@ -290,3 +290,25 @@ curl -X POST localhost:8000/go-heavier/migrations \
 
 Requires `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` and `GOOGLE_SPREADSHEET_ID`; without
 them the endpoint returns `503`.
+
+### Finance
+
+Everything under `/finance` is `admin`-only: spends (`/finance/transactions`),
+the categories, merchants and payment methods they refer to, each category's
+monthly target (`/finance/budgets`), and a month's spending against those
+targets (`/finance/stats/monthly?year=2026&month=10`).
+
+`POST /finance/migrations` loads the finance Google Sheet, one tab per month
+from `2024-01`. Each spend row is given a UUID in its tab's `ID` column the
+first time it's imported, so importing again updates it rather than adding it
+twice. Spends dated after today (the sheet's estimates) aren't imported, and
+the pre-2026 categories (`Eating Out`, `Bills`, `Travel`, ...) are mapped onto
+the current ones in `src/migration_utils/finance_categories.py`.
+
+```bash
+curl -X POST localhost:8000/finance/migrations \
+  -H 'Content-Type: application/json' -d '{"dry_run": true}' | jq
+```
+
+Requires `FINANCE_SPREADSHEET_ID`, and the service account needs edit access to
+that sheet to write the ids back.

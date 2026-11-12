@@ -41,6 +41,9 @@ class Config:
     GOOGLE_IOS_CLIENT_ID: Optional[str] = os.getenv("GOOGLE_IOS_CLIENT_ID") or None
     DEFAULT_DB_PAGE_SIZE: int = int(os.getenv("DEFAULT_DB_PAGE_SIZE", "50"))
     GOOGLE_SPREADSHEET_ID: str = os.getenv("GOOGLE_SPREADSHEET_ID")
+    # The finance spreadsheet, read with the same service account. It needs
+    # edit access, since spends without an id have one written back.
+    FINANCE_SPREADSHEET_ID: Optional[str] = os.getenv("FINANCE_SPREADSHEET_ID") or None
     GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: str = os.getenv(
         "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64"
     )
