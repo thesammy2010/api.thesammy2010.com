@@ -1,12 +1,12 @@
 """Schemas for a single spend."""
 
 import datetime
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from src.schemas.finance.enums import TimeOfDay
+from src.schemas.finance.enums import TimeOfDay, TransactionRelation
 from src.schemas.finance.money import Money
 from src.schemas.utils import PaginationParams
 
@@ -30,6 +30,10 @@ class ListTransactionsRequest(PaginationParams):
     )
     payment_method_id: Optional[UUID] = Field(
         description="Only list spends paid with this payment method", default=None
+    )
+    related_to_id: Optional[UUID] = Field(
+        description="Only list the spends that belong to this one, such as its fees",
+        default=None,
     )
 
     @model_validator(mode="after")
@@ -81,6 +85,17 @@ class TransactionRequest(BaseModel):
     time_of_day: Optional[TimeOfDay] = Field(
         description="When in the day it was spent, or online", default=None
     )
+    related_to_id: Optional[UUID] = Field(
+        description="The spend this one belongs to, such as the purchase a "
+        "foreign transaction fee was charged for. It can't itself belong to "
+        "another spend",
+        default=None,
+    )
+    relation: Optional[TransactionRelation] = Field(
+        description="How this spend relates to related_to_id. Required with it, "
+        "and only allowed with it",
+        default=None,
+    )
 
     @model_validator(mode="after")
     def validate_original_amount(self) -> "TransactionRequest":
@@ -88,8 +103,38 @@ class TransactionRequest(BaseModel):
             raise ValueError("original_currency is set without original_amount")
         return self
 
+    @model_validator(mode="after")
+    def validate_relation(self) -> "TransactionRequest":
+        if (self.related_to_id is None) != (self.relation is None):
+            raise ValueError("related_to_id and relation must be set together")
+        return self
+
 
 class TransactionResponse(TransactionRequest):
     id: UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
+
+
+class TransactionDetailResponse(TransactionResponse):
+    """One spend, with the spends that belong to it and its true cost."""
+
+    related: List[TransactionResponse] = Field(
+        description="The spends that belong to this one, oldest first"
+    )
+    total_gbp: Money = Field(
+        description="amount_gbp plus every related spend's, so a purchase's "
+        "foreign transaction fee counts towards it and a refund off it"
+    )
+    exchange_rate: Optional[float] = Field(
+        description="Units of original_currency per pound at which the card "
+        "charged it, original_amount / amount_gbp. Null without an "
+        "original_amount",
+        default=None,
+    )
+    effective_exchange_rate: Optional[float] = Field(
+        description="Units of original_currency per pound once the related "
+        "spends are counted, original_amount / total_gbp. Lower than "
+        "exchange_rate when a fee was charged separately",
+        default=None,
+    )

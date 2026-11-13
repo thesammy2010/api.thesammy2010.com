@@ -295,8 +295,20 @@ them the endpoint returns `503`.
 
 Everything under `/finance` is `admin`-only: spends (`/finance/transactions`),
 the categories, merchants and payment methods they refer to, each category's
-monthly target (`/finance/budgets`), and a month's spending against those
-targets (`/finance/stats/monthly?year=2026&month=10`).
+monthly target (`/finance/budgets`), and stats:
+
+- `/finance/stats/monthly?year=2026&month=11`: a month by category against
+  its targets, with a forecast of the month's total while it's in progress
+- `/finance/stats/yearly?year=2026`: every category month by month, with
+  averages and how far over or under target each is so far
+- `/finance/stats/merchants?after=2026-01-01&limit=20`: the merchants most
+  spent with and most often spent at
+- `/finance/stats/year-on-year?year=2026&month=11`: a month and the year to
+  date against the same days a year before, by category
+- `/finance/stats/unusual?times_typical=3&min_amount_gbp=20`: spends far above
+  their category's median
+- `/finance/stats/breakdown?after=2026-01-01&exclude_recurring=true`: spending
+  by card, day of the week and time of day
 
 `POST /finance/migrations` loads the finance Google Sheet, one tab per month
 from `2024-01`. Each spend row is given a UUID in its tab's `ID` column the
@@ -309,6 +321,14 @@ the current ones in `src/migration_utils/finance_categories.py`.
 curl -X POST localhost:8000/finance/migrations \
   -H 'Content-Type: application/json' -d '{"dry_run": true}' | jq
 ```
+
+A spend can belong to another, such as a foreign transaction fee charged
+separately from its purchase: set `related_to_id` to the purchase and
+`relation` to `fee` (or `refund`, `other`). `GET /finance/transactions/{id}`
+then returns the purchase with its fees, `total_gbp` including them, and the
+`effective_exchange_rate` that works out to. In the sheet, add a `Related To`
+column holding the purchase row's `ID`, and optionally a `Relation` column;
+a linked row with no relation is taken to be a fee. Links are one level deep.
 
 Requires `FINANCE_SPREADSHEET_ID`, and the service account needs edit access to
 that sheet to write the ids back.

@@ -22,7 +22,11 @@ from src.migration_utils.finance_categories import (
     SHEET_SPELLINGS,
     map_category,
 )
-from src.schemas.finance.enums import PaymentMethodKind, TimeOfDay
+from src.schemas.finance.enums import (
+    PaymentMethodKind,
+    TimeOfDay,
+    TransactionRelation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +43,10 @@ BREAKDOWN_TAB = re.compile(r"^(\d{4})-Breakdown$")
 FIRST_MONTH = "2024-01"
 
 ID_HEADER = "ID"
+# Optional columns linking a spend to the one it belongs to, such as a foreign
+# transaction fee to its purchase: the other row's ID, and how it relates
+RELATED_TO_HEADER = "Related To"
+RELATION_HEADER = "Relation"
 
 # A formatted date such as "2026-11-01 Sun". The rows that hold only the day
 # of the month don't match, which is what keeps them from being taken as dates.
@@ -106,6 +114,8 @@ class SheetSpend:
     is_recurring: Optional[bool]
     with_partner: Optional[bool]
     time_of_day: Optional[TimeOfDay]
+    related_to: Optional[uuid.UUID] = None
+    relation: Optional[TransactionRelation] = None
 
 
 @dataclasses.dataclass
@@ -193,6 +203,15 @@ def parse_yes_no(value: Any) -> Optional[bool]:
     return None
 
 
+def parse_relation(value: Any) -> Optional[TransactionRelation]:
+    """How a spend relates to another, or None when the cell isn't one."""
+    text = (_text(value) or "").lower()
+    for relation in TransactionRelation:
+        if text == relation.value:
+            return relation
+    return None
+
+
 def parse_time_of_day(value: Any) -> Optional[TimeOfDay]:
     return TIMES_OF_DAY.get((_text(value) or "").lower())
 
@@ -271,6 +290,28 @@ def parse_month_tab(
         except ValueError:
             raise ValueError(f"{tab} row {sheet_row} has an invalid ID: {row_id}")
 
+        related_text = _text(_cell(row, column(RELATED_TO_HEADER)))
+        try:
+            related_to = uuid.UUID(related_text) if related_text else None
+        except ValueError:
+            raise ValueError(
+                f"{tab} row {sheet_row} has an invalid {RELATED_TO_HEADER}: "
+                f"{related_text}"
+            )
+        relation_text = _text(_cell(row, column(RELATION_HEADER)))
+        relation = parse_relation(relation_text)
+        if relation_text and relation is None:
+            raise ValueError(
+                f"{tab} row {sheet_row} has an unknown {RELATION_HEADER}: "
+                f"{relation_text}"
+            )
+        # Linking a row is almost always for a fee charged separately, so
+        # that's what one with no relation given is taken to be
+        if related_to is not None and relation is None:
+            relation = TransactionRelation.FEE
+        if related_to is None:
+            relation = None
+
         merchant = _text(_cell(row, column("Who")))
         description = _text(_cell(row, column("Why")))
         sheet_category = _text(_cell(row, column("Category")))
@@ -305,6 +346,8 @@ def parse_month_tab(
                 is_recurring=parse_yes_no(_cell(row, column("Recurring?"))),
                 with_partner=parse_yes_no(_cell(row, column("w/ Ankita?"))),
                 time_of_day=parse_time_of_day(_cell(row, column("When?"))),
+                related_to=related_to,
+                relation=relation,
             )
         )
 

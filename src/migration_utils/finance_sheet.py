@@ -216,7 +216,13 @@ def build_transactions(
     after: Optional[datetime.date] = None,
     before: Optional[datetime.date] = None,
 ) -> List[Transaction]:
+    """The spends as models, the ones others are related to first.
+
+    That order lets every row's related_to_id refer to one already written,
+    within the same import.
+    """
     now = pendulum.now("UTC")
+    spends = sorted(spends, key=lambda spend: spend.related_to is not None)
     return [
         Transaction(
             id=spend.id,
@@ -232,6 +238,8 @@ def build_transactions(
             is_recurring=spend.is_recurring,
             with_partner=spend.with_partner,
             time_of_day=spend.time_of_day.value if spend.time_of_day else None,
+            related_to_id=spend.related_to,
+            relation=spend.relation.value if spend.relation else None,
             created_at=now,
             updated_at=now,
         )

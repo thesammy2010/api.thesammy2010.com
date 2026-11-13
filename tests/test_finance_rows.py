@@ -22,7 +22,7 @@ from src.migration_utils.finance_rows import (
     parse_currency,
     parse_month_tab,
 )
-from src.schemas.finance.enums import TimeOfDay
+from src.schemas.finance.enums import TimeOfDay, TransactionRelation
 
 HEADER = [
     "Date",
@@ -325,3 +325,66 @@ class TestParseBreakdownTab:
             )
             == []
         )
+
+
+class TestRelatedSpends:
+    HEADER = HEADER + ["ID", "Related To", "Relation"]
+
+    def row(self, row_id, related_to="", relation="", **kwargs):
+        return spend(row_id=row_id, **kwargs) + [str(related_to), relation]
+
+    def test_a_spend_without_a_link_has_none(self):
+        (only,) = parse(
+            self.row(uuid.uuid4(), date="2026-11-01 Sun"), header=self.HEADER
+        )
+
+        assert only.related_to is None
+        assert only.relation is None
+
+    def test_a_link_with_no_relation_is_a_fee(self):
+        purchase = uuid.uuid4()
+        _, fee = parse(
+            self.row(purchase, date="2026-11-01 Sun", cost="¥1,100"),
+            self.row(uuid.uuid4(), related_to=purchase, gbp="£0.16"),
+            header=self.HEADER,
+        )
+
+        assert fee.related_to == purchase
+        assert fee.relation == TransactionRelation.FEE
+
+    def test_the_relation_is_read(self):
+        purchase = uuid.uuid4()
+        _, refund = parse(
+            self.row(purchase, date="2026-11-01 Sun"),
+            self.row(uuid.uuid4(), related_to=purchase, relation="Refund"),
+            header=self.HEADER,
+        )
+
+        assert refund.relation == TransactionRelation.REFUND
+
+    def test_a_relation_without_a_link_is_ignored(self):
+        (only,) = parse(
+            self.row(uuid.uuid4(), date="2026-11-01 Sun", relation="fee"),
+            header=self.HEADER,
+        )
+
+        assert only.relation is None
+
+    def test_an_invalid_link_names_its_row(self):
+        with pytest.raises(ValueError, match="2026-11 row 3 has an invalid Related To"):
+            parse(
+                self.row(uuid.uuid4(), related_to="nope", date="2026-11-01 Sun"),
+                header=self.HEADER,
+            )
+
+    def test_an_unknown_relation_names_its_row(self):
+        with pytest.raises(ValueError, match="2026-11 row 3 has an unknown Relation"):
+            parse(
+                self.row(
+                    uuid.uuid4(),
+                    related_to=uuid.uuid4(),
+                    relation="tip",
+                    date="2026-11-01 Sun",
+                ),
+                header=self.HEADER,
+            )

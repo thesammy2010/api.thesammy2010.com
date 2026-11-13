@@ -9,6 +9,10 @@ class ReferenceNotFound(LookupError):
     """Raised when a request refers to a row that doesn't exist."""
 
 
+class InvalidRelation(ValueError):
+    """Raised when a spend can't belong to the one it's said to."""
+
+
 class DuplicateName(ValueError):
     """Raised when a name that has to be unique is already taken."""
 

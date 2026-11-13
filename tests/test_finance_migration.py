@@ -225,3 +225,53 @@ class TestAssignMissingIds:
         finance_sheet.assign_missing_ids(book, self.spends(book), write=True)
 
         assert book.spreadsheet.added_columns == {"2026-11": 1}
+
+
+class TestRelatedSpends:
+    HEADER = HEADER + ["ID", "Related To", "Relation"]
+    PURCHASE = uuid.UUID("0c6a5c76-8f5e-4c43-9a43-7f7a8f0d0b01")
+    FEE = uuid.UUID("0c6a5c76-8f5e-4c43-9a43-7f7a8f0d0b02")
+
+    def row(self, row_id, related_to="", gbp="£1.00", date=""):
+        return [date, gbp, "Barclays", "", "", "", str(row_id), str(related_to), ""]
+
+    def test_a_fee_is_imported_after_its_purchase(self, sheet):
+        sheet(
+            workbook(
+                self.row(self.FEE, related_to=self.PURCHASE, date="2026-11-01 Sun"),
+                self.row(self.PURCHASE),
+                header=self.HEADER,
+            )
+        )
+        spends = finance_sheet.read_spends(finance_sheet.read_workbook(None))
+
+        built = finance_sheet.build_transactions(spends)
+
+        assert [row.id for row in built] == [self.PURCHASE, self.FEE]
+        assert built[1].relation == "fee"
+        assert result_for(run(), FinanceTable.TRANSACTIONS).rows == 2
+
+    def test_a_chain_of_links_rejects_the_import(self, sheet):
+        third = uuid.uuid4()
+        sheet(
+            workbook(
+                self.row(self.PURCHASE, date="2026-11-01 Sun"),
+                self.row(self.FEE, related_to=self.PURCHASE),
+                self.row(third, related_to=self.FEE),
+                header=self.HEADER,
+            )
+        )
+
+        with pytest.raises(FinanceMigrationValidationError, match="itself related"):
+            run()
+
+    def test_a_link_to_itself_rejects_the_import(self, sheet):
+        sheet(
+            workbook(
+                self.row(self.FEE, related_to=self.FEE, date="2026-11-01 Sun"),
+                header=self.HEADER,
+            )
+        )
+
+        with pytest.raises(FinanceMigrationValidationError, match="related to itself"):
+            run()

@@ -19,3 +19,13 @@ class TimeOfDay(str, enum.Enum):
     NIGHT = "night"
     # Bought online, where the time of day doesn't say anything
     ONLINE = "online"
+
+
+class TransactionRelation(str, enum.Enum):
+    """How a spend relates to the one it belongs to."""
+
+    # Charged on top of it, such as a foreign transaction fee
+    FEE = "fee"
+    # Money back for it, with a negative amount
+    REFUND = "refund"
+    OTHER = "other"

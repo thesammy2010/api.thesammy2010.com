@@ -3,7 +3,15 @@ import decimal
 import uuid
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, Numeric, String, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Numeric,
+    String,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.schema import ForeignKey
 
@@ -18,6 +26,12 @@ class Transaction(Base):
     """
 
     __tablename__ = "finance_transactions"
+    __table_args__ = (
+        CheckConstraint(
+            "(related_to_id IS NULL) = (relation IS NULL)",
+            name="relation_set_with_related_to",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, server_default=func.gen_random_uuid(), nullable=False
@@ -42,6 +56,16 @@ class Transaction(Base):
         ForeignKey("finance_categories.id"), nullable=True
     )
     description: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+
+    # The spend this one belongs to, such as the purchase a foreign transaction
+    # fee was charged for, so the fee can be counted towards its true cost.
+    # Only one level deep: a spend with this set can't have its own.
+    related_to_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("finance_transactions.id"), nullable=True, index=True
+    )
+    # One of TransactionRelation, stored as its value. Set exactly when
+    # related_to_id is.
+    relation: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
 
     # Only recorded from 2026, so null means unknown rather than no
     is_necessary: Mapped[Optional[bool]] = mapped_column(Boolean(), nullable=True)

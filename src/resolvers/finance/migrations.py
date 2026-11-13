@@ -9,6 +9,7 @@ from src import db
 from src.config import Config
 from src.migration_utils import finance_sheet
 from src.models import Base
+from src.models.finance import Transaction
 from src.resolvers.go_heavier.migrations import MigrationConfigurationError
 from src.schemas.finance.budgets import PutBudgetRequest
 from src.schemas.finance.merchants import MerchantRequest
@@ -66,6 +67,56 @@ def _validate_rows(table: FinanceTable, rows: List[Base]) -> None:
         raise FinanceMigrationValidationError(table=table, errors=errors)
 
 
+def _validate_relations(transactions: List[Transaction]) -> None:
+    """Check every related spend refers to one that exists and belongs to none.
+
+    The one it refers to may be in this import or already in the database,
+    such as when the import is narrowed by date.
+    """
+    by_id = {row.id: row for row in transactions}
+    missing = {
+        row.related_to_id
+        for row in transactions
+        if row.related_to_id is not None and row.related_to_id not in by_id
+    }
+    elsewhere = (
+        dict(
+            db.session.query(Transaction.id, Transaction.related_to_id)
+            .filter(Transaction.id.in_(missing))
+            .all()
+        )
+        if missing
+        else {}
+    )
+
+    errors: List[str] = []
+    for row in transactions:
+        if row.related_to_id is None:
+            continue
+        if row.related_to_id == row.id:
+            errors.append(f"{row.id} (related to itself)")
+        elif row.related_to_id in by_id:
+            if by_id[row.related_to_id].related_to_id is not None:
+                errors.append(
+                    f"{row.id} (related to {row.related_to_id}, which is itself "
+                    "related to another)"
+                )
+        elif row.related_to_id not in elsewhere:
+            errors.append(
+                f"{row.id} (related to {row.related_to_id}, which isn't in the "
+                "sheet's imported spends or the database)"
+            )
+        elif elsewhere[row.related_to_id] is not None:
+            errors.append(
+                f"{row.id} (related to {row.related_to_id}, which is itself "
+                "related to another)"
+            )
+    if errors:
+        raise FinanceMigrationValidationError(
+            table=FinanceTable.TRANSACTIONS, errors=errors
+        )
+
+
 def run_migration(request: RunFinanceMigrationRequest) -> RunFinanceMigrationResponse:
     """Load the finance sheet into the database, upserting every table.
 
@@ -104,6 +155,7 @@ def run_migration(request: RunFinanceMigrationRequest) -> RunFinanceMigrationRes
     }
     for table, rows in tables.items():
         _validate_rows(table, rows)
+    _validate_relations(transactions)
 
     results: List[FinanceTableResult] = []
     try:

@@ -56,6 +56,11 @@ class TestRouting:
             "payment-methods",
             "budgets",
             "stats/monthly",
+            "stats/yearly",
+            "stats/merchants",
+            "stats/year-on-year",
+            "stats/unusual",
+            "stats/breakdown",
             "migrations",
         ],
     )
