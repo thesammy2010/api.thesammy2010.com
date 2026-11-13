@@ -5,6 +5,11 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from src.models import metadata
+from src.models.finance import Budget  # noqa: F401
+from src.models.finance import Category  # noqa: F401
+from src.models.finance import Merchant  # noqa: F401
+from src.models.finance import PaymentMethod  # noqa: F401
+from src.models.finance import Transaction  # noqa: F401
 from src.models.go_heavier import Exercise  # noqa: F401
 from src.models.go_heavier import HealthDay  # noqa: F401
 from src.models.go_heavier import HealthWorkout  # noqa: F401
