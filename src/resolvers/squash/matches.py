@@ -370,8 +370,9 @@ def set_game(
 ) -> Optional[DBMatch]:
     """Sets a game's score, adding it when it's the next one.
 
-    For entering a game's score after the fact. One scored rally by rally
-    can only be changed by undoing its rallies, so they keep adding up to it.
+    For entering a game's score after the fact, or correcting one. Setting
+    the score of a game scored rally by rally drops its rallies, since they
+    would no longer add up to it, and it's then kept as an entered score.
     """
     match = get_match(match_id)
     if not match:
@@ -390,11 +391,7 @@ def set_game(
             )
         else:
             existing = match.games[number - 1]
-            if existing.rallies:
-                raise scoring.InvalidScore(
-                    f"Game {number} is scored rally by rally, so undo its "
-                    "rallies to change it"
-                )
+            existing.rallies.clear()
             existing.side1_points = game.side1_points
             existing.side2_points = game.side2_points
         _settle(match, scored=True)
