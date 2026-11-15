@@ -10,8 +10,9 @@ from collections import Counter
 import pytest
 from fastapi.routing import APIRoute
 
-from src.common import UserRole
+from src.common import ROLE_RANK, UserRole
 from src.main import app
+from src.resolvers.squash.players import require_squash_player
 from src.routers.root import _required_role
 
 ROUTES = [route for route in app.routes if isinstance(route, APIRoute)]
@@ -29,7 +30,7 @@ class TestRouting:
         """A router that is written but never included is silently absent."""
         prefixes = {route.path.split("/")[1] for route in ROUTES}
 
-        assert {"go-heavier", "users", "config", "finance"} <= prefixes
+        assert {"go-heavier", "users", "config", "finance", "squash"} <= prefixes
 
     @pytest.mark.parametrize(
         "resource",
@@ -94,6 +95,84 @@ class TestRouting:
 
         assert finance
         assert not_admin == []
+
+    @pytest.mark.parametrize(
+        "resource",
+        [
+            "players",
+            "players/me",
+            "players/{player_id}/stats",
+            "players/{player_id}/head-to-head/{opponent_id}",
+            "matches",
+            "matches/{match_id}/games/{number}",
+            "matches/{match_id}/rallies",
+            "matches/{match_id}/rallies/last",
+            "matches/{match_id}/complete",
+        ],
+    )
+    def test_every_squash_resource_is_reachable(self, resource: str):
+        paths = {route.path for route in ROUTES}
+
+        assert f"/squash/{resource}" in paths
+
+    def test_every_squash_route_is_for_the_groups_players(self):
+        """Being in the group is what lets a friend in, on top of their role."""
+        squash = [route for route in ROUTES if route.path.startswith("/squash/")]
+
+        def gates(route: APIRoute) -> set:
+            calls = set()
+
+            def collect(dependant) -> None:
+                calls.add(dependant.call)
+                for sub_dependant in dependant.dependencies:
+                    collect(sub_dependant)
+
+            collect(route.dependant)
+            return calls
+
+        ungated = [
+            route_ids(route)
+            for route in squash
+            if require_squash_player not in gates(route)
+        ]
+
+        assert squash
+        assert ungated == []
+
+    def test_squash_is_closed_to_guests(self):
+        """Anyone with a Google account can sign in and become a guest."""
+        open_to_guests = [
+            route_ids(route)
+            for route in ROUTES
+            if route.path.startswith("/squash/")
+            and _required_role(route) not in (UserRole.SQUASH, UserRole.ADMIN)
+        ]
+
+        assert open_to_guests == []
+
+    def test_the_squash_role_opens_nothing_else(self):
+        """Squash friends mustn't see Go Heavier, so their role sits below
+        viewer and only /squash asks for it."""
+        outside = [
+            route_ids(route)
+            for route in ROUTES
+            if not route.path.startswith("/squash/")
+            and _required_role(route) == UserRole.SQUASH
+        ]
+
+        assert ROLE_RANK[UserRole.GUEST] < ROLE_RANK[UserRole.SQUASH]
+        assert ROLE_RANK[UserRole.SQUASH] < ROLE_RANK[UserRole.VIEWER]
+        assert outside == []
+
+    def test_managing_squash_players_is_admin_only(self):
+        admin = {
+            route_ids(route)
+            for route in ROUTES
+            if route.path.startswith("/squash/")
+            and _required_role(route) == UserRole.ADMIN
+        }
+
+        assert admin == {"POST /squash/players", "PUT /squash/players/{player_id}"}
 
     def test_no_two_routes_share_a_method_and_path(self):
         """A duplicate is unreachable: the first declared one always wins."""
@@ -174,6 +253,9 @@ class TestOpenApi:
             ("/go-heavier/migrations", "post"),
             ("/finance/transactions", "post"),
             ("/finance/migrations", "post"),
+            ("/squash/matches", "post"),
+            ("/squash/matches/{match_id}/games/{number}", "put"),
+            ("/squash/matches/{match_id}/rallies", "post"),
         ],
     )
     def test_the_write_endpoints_document_a_body(self, path: str, method: str):

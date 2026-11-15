@@ -16,6 +16,11 @@ from src.models.go_heavier import HealthWorkout  # noqa: F401
 from src.models.go_heavier import Location  # noqa: F401
 from src.models.go_heavier import Session  # noqa: F401
 from src.models.go_heavier import Workout  # noqa: F401
+from src.models.squash import Game  # noqa: F401
+from src.models.squash import Match  # noqa: F401
+from src.models.squash import MatchPlayer  # noqa: F401
+from src.models.squash import Player  # noqa: F401
+from src.models.squash import Rally  # noqa: F401
 from src.models.user import User  # noqa: F401
 
 config = context.config

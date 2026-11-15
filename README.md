@@ -339,3 +339,55 @@ a linked row with no relation is taken to be a fee. Links are one level deep.
 
 Requires `FINANCE_SPREADSHEET_ID`, and the service account needs edit access to
 that sheet to write the ids back.
+
+### Squash
+
+Everything under `/squash` is for the squash group's players with the `squash`
+role or above. `squash` sits between `guest` and `viewer` and opens nothing but
+`/squash`, so friends can't read Go Heavier. Signing in only makes someone a
+`guest`, so an admin lets each friend in by giving them the `squash` role
+(`PATCH /users/{id}/role`) and adding them with `POST /squash/players`, giving
+their Google email. They're linked to their user the first time they use
+`/squash` with the role (or straight away if they've already signed in). Only
+admins add and change players.
+
+Matches are singles or doubles, games to 11 (`points_to`) under point-a-rally
+scoring, played on from 10-all until a side is two clear. `best_of` is
+optional: without it, whoever won more games wins.
+
+```bash
+# arrange a doubles match, sides 1 and 2
+curl -X POST localhost:8000/squash/matches -H 'Content-Type: application/json' \
+  -d '{"format": "doubles", "best_of": 5, "players": [
+        {"player_id": "...", "side": 1}, {"player_id": "...", "side": 1},
+        {"player_id": "...", "side": 2}, {"player_id": "...", "side": 2}]}'
+
+# score it live: who won each rally, against the version the phone is showing
+curl -X POST localhost:8000/squash/matches/{id}/rallies \
+  -H 'Content-Type: application/json' -d '{"won_by_side": 1, "version": 14}'
+
+# take back a point given to the wrong side
+curl -X DELETE 'localhost:8000/squash/matches/{id}/rallies/last?version=15'
+
+# follow it from another phone: 204 until it moves past version 15
+curl 'localhost:8000/squash/matches/{id}?since_version=15'
+```
+
+Each response gives the score, `serving_side`, the side to serve next, and
+the match's `version`, which goes up on every change. Several people can score
+the same match: a rally or undo sent against an older version gets a 409 with
+the match as it is now, so two phones scoring the same rally add one point.
+The others follow along by polling every second or two with `since_version`. The
+point that decides a best-of match completes it, and undoing it reopens it.
+`GET /squash/matches/{id}/rallies` is the point-by-point history. A game played
+without scoring it live can be entered whole with
+`PUT /squash/matches/{id}/games/{number}`.
+
+To just play games until you stop, leave out `best_of`. The match then never
+ends itself: finish it with `POST /squash/matches/{id}/complete?version=N`.
+The side that won more games wins, level is a draw (`winning_side` null), and
+a game left unfinished, such as when the court time runs out, doesn't count.
+
+`/squash/players/{id}/stats` is a player's record, draws included, and
+`/squash/players/{id}/head-to-head/{opponent_id}` their matches against one
+other player, counting doubles where they were on opposite sides.
