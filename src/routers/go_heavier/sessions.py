@@ -9,7 +9,7 @@ from src.resolvers.go_heavier.sessions import (
     LocationNotFound,
     SessionAlreadyExists,
 )
-from src.resolvers.users import require_editor, require_viewer
+from src.resolvers.users import require_admin, require_editor, require_viewer
 from src.schemas.go_heavier.session_stats import (
     SessionStatsRequest,
     SessionStatsResponse,
@@ -24,7 +24,14 @@ from src.schemas.go_heavier.sessions import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/go-heavier", tags=["sessions"])
+# Admin-only for now, set once here so that a new route can't be added
+# without it. The per-route viewer/editor gates are kept underneath, so
+# opening it up again is just removing this.
+router = APIRouter(
+    prefix="/go-heavier",
+    tags=["sessions"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 @router.get(

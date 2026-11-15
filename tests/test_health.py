@@ -1,10 +1,16 @@
 from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
-from src.resolvers.go_heavier.health import could_match, nearest
+from src.resolvers.go_heavier.health import (
+    SyncedByAnotherUser,
+    _claim,
+    could_match,
+    nearest,
+)
 from src.schemas.go_heavier.health import (
     LinkHealthWorkoutRequest,
     ListHealthDaysRequest,
@@ -140,3 +146,32 @@ class TestHealthDays:
         request = ListHealthDaysRequest(after="2026-10-01")
 
         assert request.after == date(2026, 10, 1)
+
+
+class TestClaim:
+    """Test which user synced health data is associated with."""
+
+    def test_data_synced_by_nobody_yet_becomes_the_callers(self):
+        user = SimpleNamespace(id=uuid4())
+        row = SimpleNamespace(user_id=None)
+
+        _claim(row, user, "Workout")
+
+        assert row.user_id == user.id
+
+    def test_the_caller_can_sync_their_own_again(self):
+        user = SimpleNamespace(id=uuid4())
+        row = SimpleNamespace(user_id=user.id)
+
+        _claim(row, user, "Workout")
+
+        assert row.user_id == user.id
+
+    def test_another_users_data_is_left_alone(self):
+        owner = uuid4()
+        row = SimpleNamespace(user_id=owner)
+
+        with pytest.raises(SyncedByAnotherUser):
+            _claim(row, SimpleNamespace(id=uuid4()), "2026-11-01")
+
+        assert row.user_id == owner

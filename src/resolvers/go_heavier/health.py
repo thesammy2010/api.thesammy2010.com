@@ -10,6 +10,7 @@ from src.db import session
 from src.models.go_heavier import HealthDay as DBHealthDay
 from src.models.go_heavier import HealthWorkout as DBHealthWorkout
 from src.models.go_heavier import Session as DBSession
+from src.models.user import User
 from src.schemas.go_heavier.health import (
     ListHealthDaysRequest,
     ListHealthWorkoutsRequest,
@@ -60,6 +61,19 @@ class SessionNotFound(LookupError):
     """Raised when linking a workout to a session that does not exist."""
 
 
+class SyncedByAnotherUser(PermissionError):
+    """Raised when syncing over health data another user synced."""
+
+
+def _claim(row, user: User, label: str) -> None:
+    """Associates a row with the user syncing it, unless another user
+    already synced it."""
+    if row.user_id is None:
+        row.user_id = user.id
+    elif row.user_id != user.id:
+        raise SyncedByAnotherUser(f"{label} was synced by another user")
+
+
 class SessionAlreadyLinked(ValueError):
     """Raised when linking a workout to a session another workout has."""
 
@@ -99,14 +113,15 @@ def get_workout(workout_id: uuid.UUID) -> Optional[DBHealthWorkout]:
 
 
 def put_workout(
-    workout_id: uuid.UUID, request: PutHealthWorkoutRequest
+    workout_id: uuid.UUID, request: PutHealthWorkoutRequest, user: User
 ) -> DBHealthWorkout:
-    """Creates or replaces a workout, then links it to the session it was
-    recorded during, unless it was linked by hand."""
+    """Creates or replaces a workout as the user syncing it, then links it
+    to the session it was recorded during, unless it was linked by hand."""
     workout = get_workout(workout_id)
     if workout is None:
         workout = DBHealthWorkout(id=workout_id, session_linked_manually=False)
         session.add(workout)
+    _claim(workout, user, f"Workout {workout_id}")
 
     for field, value in request.model_dump().items():
         setattr(workout, field, value)
@@ -221,12 +236,15 @@ def get_days(request: ListHealthDaysRequest) -> List[DBHealthDay]:
     )
 
 
-def put_day(date: datetime.date, request: PutHealthDayRequest) -> DBHealthDay:
-    """Creates or replaces one day."""
+def put_day(
+    date: datetime.date, request: PutHealthDayRequest, user: User
+) -> DBHealthDay:
+    """Creates or replaces one day as the user syncing it."""
     day = session.query(DBHealthDay).filter(DBHealthDay.date == date).first()
     if day is None:
         day = DBHealthDay(date=date)
         session.add(day)
+    _claim(day, user, f"{date}")
 
     for field, value in request.model_dump().items():
         setattr(day, field, value)

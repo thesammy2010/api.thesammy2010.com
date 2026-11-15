@@ -31,6 +31,11 @@ class HealthWorkout(Base):
     session_linked_manually: Mapped[bool] = mapped_column(
         Boolean(), nullable=False, default=False
     )
+    # Who synced it from their phone. Null for one synced before this was
+    # recorded, until it's next synced.
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
 
     activity_type: Mapped[str] = mapped_column(String(64), nullable=False)
     start_time: Mapped[datetime.datetime] = mapped_column(
@@ -97,6 +102,11 @@ class HealthDay(Base):
 
     # The local calendar date. For sleep, the date it was woken up on.
     date: Mapped[datetime.date] = mapped_column(Date(), primary_key=True)
+    # Who synced it from their phone. Null for one synced before this was
+    # recorded, until it's next synced.
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
 
     sleep_start: Mapped[Optional[datetime.datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

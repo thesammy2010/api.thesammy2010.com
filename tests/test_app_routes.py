@@ -69,6 +69,20 @@ class TestRouting:
 
         assert f"/finance/{resource}" in paths
 
+    def test_every_go_heavier_route_is_admin_only(self):
+        """Health data especially is private, and the rest is for now."""
+        go_heavier = [
+            route for route in ROUTES if route.path.startswith("/go-heavier/")
+        ]
+        not_admin = [
+            route_ids(route)
+            for route in go_heavier
+            if _required_role(route) != UserRole.ADMIN
+        ]
+
+        assert go_heavier
+        assert not_admin == []
+
     def test_every_finance_route_is_admin_only(self):
         """Spending is private, so not even a viewer can read it."""
         finance = [route for route in ROUTES if route.path.startswith("/finance/")]

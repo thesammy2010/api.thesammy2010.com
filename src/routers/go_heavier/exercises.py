@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from src.models.go_heavier.exercise import Exercise as DBExercise
 from src.resolvers.go_heavier import exercises
-from src.resolvers.users import require_editor, require_viewer
+from src.resolvers.users import require_admin, require_editor, require_viewer
 from src.schemas.go_heavier.exercise_stats import (
     ExerciseStatsRequest,
     ExerciseStatsResponse,
@@ -15,7 +15,14 @@ from src.schemas.go_heavier.exercises import ExerciseRequest, ExerciseResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/go-heavier", tags=["exercises"])
+# Admin-only for now, set once here so that a new route can't be added
+# without it. The per-route viewer/editor gates are kept underneath, so
+# opening it up again is just removing this.
+router = APIRouter(
+    prefix="/go-heavier",
+    tags=["exercises"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 @router.get(
