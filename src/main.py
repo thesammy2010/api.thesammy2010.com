@@ -28,8 +28,9 @@ app = FastAPI(
         "Backend for TheSammy2010 apps. Currently covers **Go Heavier**, a "
         "personal gym-session tracker: locations, exercises, sessions, and "
         "the individual sets (workouts) logged during them, plus stats "
-        "aggregated over each of those. Also **Finance**, a record of "
-        "personal spending, under `/finance`, which is `admin`-only.\n\n"
+        "aggregated over each of those, and Apple Health data. It's "
+        "`admin`-only for now. Also **Finance**, a record of personal "
+        "spending, under `/finance`, which is `admin`-only.\n\n"
         "### Authentication\n"
         "Every endpoint except this documentation requires a Google "
         "Sign-In ID token as a Bearer token. Click **Authorize** below and "
@@ -143,11 +144,10 @@ async def guard_shared_db_session(request: Request, call_next):
 app.include_router(root.router)
 app.include_router(root.admin_router)
 
-# Every other router declares its own minimum role per-route (viewer to
-# read, editor to write), since a single blanket dependency can't tell
-# GET from POST/PUT/DELETE apart. Migrations is the exception - it can
-# overwrite real data from an external sheet, so it's admin-only. The
-# finance routers are admin-only throughout, set on each router.
+# The Go Heavier and finance routers are admin-only throughout, set on each
+# router. Go Heavier's routes also keep their own minimum role per-route
+# (viewer to read, editor to write) for when it's opened up again, since a
+# single blanket dependency can't tell GET from POST/PUT/DELETE apart.
 app.include_router(locations.router)
 app.include_router(exercises.router)
 app.include_router(workouts.router)

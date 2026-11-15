@@ -81,6 +81,13 @@ docker compose up -d postgres
 psql -U api -d api_thesammy2010_com
 ```
 
+### Go Heavier access
+
+Everything under `/go-heavier`, Apple Health data included, is `admin`-only for
+now. Each route still has its own `viewer` (read) or `editor` (write) gate
+underneath, so opening it up again is just removing the admin dependency from
+each router in `src/routers/go_heavier/`.
+
 ### Location stats
 
 `GET /go-heavier/locations/{location_id}/stats` aggregates a location's workout
@@ -233,7 +240,7 @@ that `stats` is not matched as a session id.
 ### Apple Health
 
 The iOS app reads Apple Health and sends two things, each keyed so it can be
-sent any number of times:
+sent any number of times, each recorded against the user who synced it:
 
 - **Workouts** recorded by a watch, `PUT /go-heavier/health/workouts/{id}`,
   where the id is the HealthKit workout's UUID. Duration, calories, average

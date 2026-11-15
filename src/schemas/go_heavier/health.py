@@ -118,6 +118,11 @@ class HealthWorkoutSummary(_HealthWorkoutFields):
     session_linked_manually: bool = Field(
         description="Whether session_id was set by hand rather than matched"
     )
+    user_id: Optional[UUID] = Field(
+        description="The user who synced it. Null for one synced before that "
+        "was recorded, until it's next synced",
+        default=None,
+    )
     created_at: datetime.datetime
     updated_at: Optional[datetime.datetime] = None
 
@@ -193,6 +198,11 @@ class PutHealthDayRequest(_HealthDayFields):
 class HealthDayResponse(_HealthDayFields):
     date: datetime.date = Field(
         description="The local date. For sleep, the date it was woken up on"
+    )
+    user_id: Optional[UUID] = Field(
+        description="The user who synced it. Null for one synced before that "
+        "was recorded, until it's next synced",
+        default=None,
     )
     created_at: datetime.datetime
     updated_at: Optional[datetime.datetime] = None

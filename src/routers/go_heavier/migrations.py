@@ -15,7 +15,14 @@ from src.schemas.go_heavier.migrations import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/go-heavier", tags=["migrations"])
+# Admin-only for now, set once here so that a new route can't be added
+# without it. The per-route viewer/editor gates are kept underneath, so
+# opening it up again is just removing this.
+router = APIRouter(
+    prefix="/go-heavier",
+    tags=["migrations"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 @router.post(
