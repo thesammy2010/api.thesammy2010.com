@@ -22,6 +22,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 class UserRole(str, enum.Enum):
     GUEST = "guest"
+    # Plays squash: /squash only, and only once they're also in the group
+    SQUASH = "squash"
     VIEWER = "viewer"
     EDITOR = "editor"
     ADMIN = "admin"
@@ -32,9 +34,10 @@ class UserRole(str, enum.Enum):
 # reserved for ADMIN regardless of where EDITOR sits.
 ROLE_RANK: Dict[UserRole, int] = {
     UserRole.GUEST: 0,
-    UserRole.VIEWER: 1,
-    UserRole.EDITOR: 2,
-    UserRole.ADMIN: 3,
+    UserRole.SQUASH: 1,
+    UserRole.VIEWER: 2,
+    UserRole.EDITOR: 3,
+    UserRole.ADMIN: 4,
 }
 
 

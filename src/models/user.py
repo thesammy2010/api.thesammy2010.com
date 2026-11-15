@@ -50,7 +50,7 @@ class User(Base):
     # the same way google_account_id is.
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    # One of guest/viewer/editor/admin (src.common.UserRole). Kept as a plain
+    # One of guest/squash/viewer/editor/admin (src.common.UserRole). Kept as a plain
     # string rather than a DB enum, consistent with how the other enums in
     # this codebase are only validated at the API layer, not the DB layer.
     role: Mapped[str] = mapped_column(

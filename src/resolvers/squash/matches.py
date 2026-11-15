@@ -1,0 +1,437 @@
+import uuid
+from typing import List, Optional, Tuple
+
+from sqlalchemy import exists
+
+from src.config import Config
+from src.db import session
+from src.models.squash import Game as DBGame
+from src.models.squash import Match as DBMatch
+from src.models.squash import MatchPlayer as DBMatchPlayer
+from src.models.squash import Player as DBPlayer
+from src.models.squash import Rally as DBRally
+from src.resolvers.squash import scoring
+from src.resolvers.squash.players import NotAllowed, NotFound, SquashCaller
+from src.schemas.squash.enums import MatchStatus
+from src.schemas.squash.matches import (
+    GameRequest,
+    GameResponse,
+    ListMatchesRequest,
+    MatchPlayerRequest,
+    MatchRequest,
+    MatchResponse,
+    RallyRequest,
+    RallyResponse,
+)
+
+
+def _scores(match: DBMatch) -> List[Tuple[int, int]]:
+    return [(game.side1_points, game.side2_points) for game in match.games]
+
+
+def _serving_side(match: DBMatch) -> Optional[int]:
+    if not match.games:
+        return None
+    last = match.games[-1]
+    return scoring.serving_side(
+        (last.side1_points, last.side2_points),
+        last.rallies[-1].won_by_side if last.rallies else None,
+        match.points_to,
+    )
+
+
+def to_response(match: DBMatch) -> MatchResponse:
+    scores = _scores(match)
+    side1_games, side2_games = scoring.games_won(scores, match.points_to)
+    return MatchResponse(
+        id=match.id,
+        format=match.format,
+        status=match.status,
+        played_at=match.played_at,
+        venue=match.venue,
+        points_to=match.points_to,
+        best_of=match.best_of,
+        notes=match.notes,
+        players=[MatchPlayerRequest.model_validate(player) for player in match.players],
+        games=[
+            GameResponse(
+                number=game.number,
+                side1_points=game.side1_points,
+                side2_points=game.side2_points,
+                winning_side=scoring.game_winner(
+                    game.side1_points, game.side2_points, match.points_to
+                ),
+                rallies=len(game.rallies),
+            )
+            for game in match.games
+        ],
+        side1_games=side1_games,
+        side2_games=side2_games,
+        winning_side=match.winning_side,
+        serving_side=_serving_side(match),
+        version=match.version,
+        created_by_id=match.created_by_id,
+        created_at=match.created_at,
+        updated_at=match.updated_at,
+    )
+
+
+def _check_can_change(match: DBMatch, caller: SquashCaller) -> None:
+    """A match can be changed by whoever arranged it, anyone playing in it, or
+    an admin."""
+    if caller.is_admin or match.created_by_id == caller.user.id:
+        return
+    if caller.player and any(
+        player.player_id == caller.player.id for player in match.players
+    ):
+        return
+    raise NotAllowed("Only the match's players or whoever arranged it can change it")
+
+
+def _check_players(players: List[MatchPlayerRequest]) -> None:
+    for player in players:
+        if session.get(DBPlayer, player.player_id) is None:
+            raise NotFound(f"Player {player.player_id} not found")
+
+
+class StaleVersion(ValueError):
+    """Raised when a change was made against an older version of a match,
+    such as two people scoring the same rally."""
+
+    def __init__(self, match: DBMatch, version: int) -> None:
+        self.match = match
+        super().__init__(
+            f"The match has changed since version {version}, it's now at "
+            f"version {match.version}"
+        )
+
+
+def _check_version(match: DBMatch, version: int) -> None:
+    if match.version != version:
+        raise StaleVersion(match, version)
+
+
+def _settle(match: DBMatch, scored: bool = False) -> None:
+    """Checks the games fit the match's rules, keeps its status and result in
+    step with them, and moves it on a version, since every change ends here.
+
+    When it's the score that changed, a best-of match completes itself on
+    the point that decides it, and reopens if that point is undone.
+    Otherwise the status is what was asked for, and completing a match is
+    rejected unless final_result allows it.
+    """
+    match.version = (match.version or 0) + 1
+    scores = _scores(match)
+    scoring.check_match_games(scores, match.points_to, match.best_of)
+    winner = scoring.match_winner(scores, match.points_to, match.best_of)
+
+    if scored and match.best_of is not None:
+        if winner is not None and match.status != MatchStatus.CANCELLED.value:
+            match.status = MatchStatus.COMPLETED.value
+        elif winner is None and match.status == MatchStatus.COMPLETED.value:
+            match.status = MatchStatus.IN_PROGRESS.value
+
+    if match.status == MatchStatus.COMPLETED.value:
+        # None for a draw
+        match.winning_side = scoring.final_result(
+            scores, match.points_to, match.best_of
+        )
+        return
+    match.winning_side = None
+    # Scoring a game starts a match that was only arranged
+    if scores and match.status == MatchStatus.SCHEDULED.value:
+        match.status = MatchStatus.IN_PROGRESS.value
+
+
+def get_matches(request: ListMatchesRequest) -> List[DBMatch]:
+    """Lists matches, most recently played first, then those not yet dated."""
+    conditions = []
+    if request.player_id:
+        conditions.append(
+            exists().where(
+                DBMatchPlayer.match_id == DBMatch.id,
+                DBMatchPlayer.player_id == request.player_id,
+            )
+        )
+    if request.status:
+        conditions.append(DBMatch.status == request.status.value)
+    if request.format:
+        conditions.append(DBMatch.format == request.format.value)
+    if request.after:
+        conditions.append(DBMatch.played_at >= request.after)
+    if request.before:
+        conditions.append(DBMatch.played_at <= request.before)
+
+    return (
+        session.query(DBMatch)
+        .filter(*conditions)
+        .order_by(
+            DBMatch.played_at.desc().nulls_last(),
+            DBMatch.created_at.desc(),
+            DBMatch.id,
+        )
+        .limit(Config.DEFAULT_DB_PAGE_SIZE)
+        .offset(request.offset)
+        .all()
+    )
+
+
+def get_match(match_id: uuid.UUID) -> Optional[DBMatch]:
+    return session.get(DBMatch, match_id)
+
+
+def _apply(match: DBMatch, request: MatchRequest) -> None:
+    _check_players(request.players)
+    fields = request.model_dump(exclude={"players"})
+    fields["format"] = request.format.value
+    fields["status"] = request.status.value
+    for field, value in fields.items():
+        setattr(match, field, value)
+    match.players = [
+        DBMatchPlayer(player_id=player.player_id, side=player.side)
+        for player in request.players
+    ]
+    _settle(match)
+
+
+def create_match(request: MatchRequest, caller: SquashCaller) -> DBMatch:
+    match = DBMatch(id=uuid.uuid4(), created_by_id=caller.user.id, games=[])
+    # Only added once it's valid, so a rejected one leaves nothing behind
+    _apply(match, request)
+    session.add(match)
+    session.commit()
+    return match
+
+
+def update_match(
+    match_id: uuid.UUID, request: MatchRequest, caller: SquashCaller
+) -> Optional[DBMatch]:
+    """Replaces every field and the players, keeping the games, which are
+    checked again under the new rules."""
+    match = get_match(match_id)
+    if not match:
+        return None
+    _check_can_change(match, caller)
+    try:
+        _apply(match, request)
+    except Exception:
+        session.rollback()
+        raise
+    session.commit()
+    return match
+
+
+def complete_match(
+    match_id: uuid.UUID, version: int, caller: SquashCaller
+) -> Optional[DBMatch]:
+    """Ends a match where it stands, for when games are just played until
+    people stop. The side with more games wins, or it's a draw."""
+    match = get_match(match_id)
+    if not match:
+        return None
+    _check_can_change(match, caller)
+    _check_version(match, version)
+    if match.status in (MatchStatus.COMPLETED.value, MatchStatus.CANCELLED.value):
+        raise scoring.InvalidScore(f"The match is already {match.status}")
+
+    try:
+        match.status = MatchStatus.COMPLETED.value
+        _settle(match)
+    except Exception:
+        session.rollback()
+        raise
+    session.commit()
+    return match
+
+
+def delete_match(match_id: uuid.UUID, caller: SquashCaller) -> bool:
+    match = get_match(match_id)
+    if not match:
+        return False
+    _check_can_change(match, caller)
+    session.delete(match)
+    session.commit()
+    return True
+
+
+def set_game(
+    match_id: uuid.UUID, number: int, game: GameRequest, caller: SquashCaller
+) -> Optional[DBMatch]:
+    """Sets a game's score, adding it when it's the next one.
+
+    For entering a game's score after the fact. One scored rally by rally
+    can only be changed by undoing its rallies, so they keep adding up to it.
+    """
+    match = get_match(match_id)
+    if not match:
+        return None
+    _check_can_change(match, caller)
+    if not 1 <= number <= len(match.games) + 1:
+        raise scoring.InvalidScore(
+            f"The next game is game {len(match.games) + 1}, so game {number} "
+            "can't be scored"
+        )
+
+    try:
+        if number > len(match.games):
+            match.games.append(
+                DBGame(id=uuid.uuid4(), number=number, **game.model_dump())
+            )
+        else:
+            existing = match.games[number - 1]
+            if existing.rallies:
+                raise scoring.InvalidScore(
+                    f"Game {number} is scored rally by rally, so undo its "
+                    "rallies to change it"
+                )
+            existing.side1_points = game.side1_points
+            existing.side2_points = game.side2_points
+        _settle(match, scored=True)
+    except Exception:
+        session.rollback()
+        raise
+    session.commit()
+    return match
+
+
+def delete_last_game(match_id: uuid.UUID, caller: SquashCaller) -> Optional[DBMatch]:
+    """Removes the latest game, such as one added by mistake."""
+    match = get_match(match_id)
+    if not match:
+        return None
+    _check_can_change(match, caller)
+    if not match.games:
+        raise NotFound("The match has no games")
+    try:
+        match.games.pop()
+        _settle(match, scored=True)
+    except Exception:
+        session.rollback()
+        raise
+    session.commit()
+    return match
+
+
+def _check_server(match: DBMatch, server_id: Optional[uuid.UUID]) -> None:
+    if server_id is None:
+        return
+    side = next(
+        (player.side for player in match.players if player.player_id == server_id),
+        None,
+    )
+    if side is None:
+        raise scoring.InvalidScore(f"Player {server_id} isn't playing in this match")
+    serving = _serving_side(match)
+    if serving is not None and side != serving:
+        raise scoring.InvalidScore(f"It's side {serving}'s serve")
+
+
+def add_rally(
+    match_id: uuid.UUID, rally: RallyRequest, caller: SquashCaller
+) -> Optional[DBMatch]:
+    """Records who won a rally, adding a point to the game in play, or
+    starting the next game when the last one's finished.
+
+    Only taken against the match's current version, so when two phones score
+    the same rally the second is turned away rather than adding a point.
+    Requests are handled one at a time (see db_lock), so nothing can change
+    between the check and the write.
+    """
+    match = get_match(match_id)
+    if not match:
+        return None
+    _check_can_change(match, caller)
+    _check_version(match, rally.version)
+    if match.status in (MatchStatus.COMPLETED.value, MatchStatus.CANCELLED.value):
+        raise scoring.InvalidScore(f"The match is {match.status}")
+    _check_server(match, rally.server_id)
+
+    try:
+        game = match.games[-1] if match.games else None
+        if game is None or scoring.game_winner(
+            game.side1_points, game.side2_points, match.points_to
+        ):
+            game = DBGame(
+                id=uuid.uuid4(),
+                number=len(match.games) + 1,
+                side1_points=0,
+                side2_points=0,
+            )
+            match.games.append(game)
+        elif not game.rallies and (game.side1_points or game.side2_points):
+            raise scoring.InvalidScore(
+                f"Game {game.number}'s score was set directly, so it can't be "
+                "carried on rally by rally"
+            )
+
+        game.rallies.append(
+            DBRally(
+                id=uuid.uuid4(),
+                number=len(game.rallies) + 1,
+                won_by_side=rally.won_by_side,
+                server_id=rally.server_id,
+            )
+        )
+        if rally.won_by_side == 1:
+            game.side1_points += 1
+        else:
+            game.side2_points += 1
+        _settle(match, scored=True)
+    except Exception:
+        session.rollback()
+        raise
+    session.commit()
+    return match
+
+
+def undo_rally(
+    match_id: uuid.UUID, version: int, caller: SquashCaller
+) -> Optional[DBMatch]:
+    """Takes back the latest rally, and the game it started if it was the
+    first. Undoing the point that won a best-of match reopens it. Like
+    scoring, only against the current version, so two undos take back one
+    point."""
+    match = get_match(match_id)
+    if not match:
+        return None
+    _check_can_change(match, caller)
+    _check_version(match, version)
+    game = match.games[-1] if match.games else None
+    if game is None or not game.rallies:
+        raise NotFound("The match's last game has no rallies to undo")
+
+    try:
+        rally = game.rallies.pop()
+        if rally.won_by_side == 1:
+            game.side1_points -= 1
+        else:
+            game.side2_points -= 1
+        if not game.rallies:
+            match.games.pop()
+        _settle(match, scored=True)
+    except Exception:
+        session.rollback()
+        raise
+    session.commit()
+    return match
+
+
+def get_rallies(match: DBMatch) -> List[RallyResponse]:
+    """Every rally of the match in order, with the score after each."""
+    rallies = []
+    for game in match.games:
+        points = {1: 0, 2: 0}
+        for rally in game.rallies:
+            points[rally.won_by_side] += 1
+            rallies.append(
+                RallyResponse(
+                    game=game.number,
+                    number=rally.number,
+                    won_by_side=rally.won_by_side,
+                    server_id=rally.server_id,
+                    side1_points=points[1],
+                    side2_points=points[2],
+                    created_at=rally.created_at,
+                )
+            )
+    return rallies

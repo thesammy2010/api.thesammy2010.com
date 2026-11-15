@@ -17,6 +17,8 @@ from src.routers.go_heavier import (
     sessions,
     workouts,
 )
+from src.routers.squash import matches as squash_matches
+from src.routers.squash import players as squash_players
 
 dotenv.load_dotenv()
 
@@ -30,17 +32,20 @@ app = FastAPI(
         "the individual sets (workouts) logged during them, plus stats "
         "aggregated over each of those, and Apple Health data. It's "
         "`admin`-only for now. Also **Finance**, a record of personal "
-        "spending, under `/finance`, which is `admin`-only.\n\n"
+        "spending, under `/finance`, which is `admin`-only. And **Squash**, "
+        "the matches a group of friends play, under `/squash`, open to the "
+        "group's players with the `squash` role or above.\n\n"
         "### Authentication\n"
         "Every endpoint except this documentation requires a Google "
         "Sign-In ID token as a Bearer token. Click **Authorize** below and "
         "paste the token (no need to type `Bearer` yourself).\n\n"
         "### Authorization\n"
-        "Endpoints are gated by role - `guest` < `viewer` < `editor` < "
-        "`admin`, each including everything the one below it can do, "
-        "except managing other users, which is `admin`-only. New accounts "
-        "start as `guest`. `GET /endpoints` maps every route to the role "
-        "it requires."
+        "Endpoints are gated by role - `guest` < `squash` < `viewer` < "
+        "`editor` < `admin`, each including everything the one below it can "
+        "do, except managing other users, which is `admin`-only. `squash` "
+        "opens only `/squash`, for friends who play but shouldn't see the "
+        "rest. New accounts start as `guest`. `GET /endpoints` maps every "
+        "route to the role it requires."
     ),
     openapi_tags=[
         {
@@ -97,6 +102,21 @@ app = FastAPI(
             ),
         },
         {
+            "name": "squash players",
+            "description": (
+                "Squash: the people in the group, and their records. Open to "
+                "the group's players with the squash role or above, and "
+                "admins; only admins add players."
+            ),
+        },
+        {
+            "name": "squash matches",
+            "description": (
+                "Squash: singles and doubles matches, from being arranged to "
+                "their result, scored game by game."
+            ),
+        },
+        {
             "name": "default",
             "description": "Static reference data, such as country and muscle group codes.",
         },
@@ -147,7 +167,8 @@ app.include_router(root.admin_router)
 # The Go Heavier and finance routers are admin-only throughout, set on each
 # router. Go Heavier's routes also keep their own minimum role per-route
 # (viewer to read, editor to write) for when it's opened up again, since a
-# single blanket dependency can't tell GET from POST/PUT/DELETE apart.
+# single blanket dependency can't tell GET from POST/PUT/DELETE apart. The
+# squash routers are for the squash role, once also in the squash group.
 app.include_router(locations.router)
 app.include_router(exercises.router)
 app.include_router(workouts.router)
@@ -159,3 +180,5 @@ app.include_router(finance_transactions.router)
 app.include_router(finance_references.router)
 app.include_router(finance_budgets.router)
 app.include_router(finance_migrations.router)
+app.include_router(squash_players.router)
+app.include_router(squash_matches.router)

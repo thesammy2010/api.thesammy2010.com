@@ -7,6 +7,7 @@ from fastapi.routing import APIRoute
 
 from src.common import UserRole, require_auth
 from src.models.user import User
+from src.resolvers.squash.players import require_squash_admin
 from src.resolvers.users import (
     create_user_admin,
     create_user_in_db,
@@ -15,6 +16,7 @@ from src.resolvers.users import (
     list_users,
     require_admin,
     require_editor,
+    require_squash,
     require_viewer,
     set_user_role,
 )
@@ -81,12 +83,16 @@ def _required_role(route: APIRoute) -> Optional[UserRole]:
 
     collect(route.dependant)
 
-    if require_admin in calls:
+    # Squash routes are for the squash role, once also in the group, which
+    # isn't a role, but managing the players is admin-only
+    if require_admin in calls or require_squash_admin in calls:
         return UserRole.ADMIN
     if require_editor in calls:
         return UserRole.EDITOR
     if require_viewer in calls:
         return UserRole.VIEWER
+    if require_squash in calls:
+        return UserRole.SQUASH
     if require_auth in calls:
         return UserRole.GUEST
     return None
