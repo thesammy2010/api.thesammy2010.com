@@ -5,7 +5,7 @@ there's little to load, and the game-by-game rules live in scoring.
 """
 
 import uuid
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 from sqlalchemy import exists
 
@@ -13,8 +13,12 @@ from src.db import session
 from src.models.squash import Match as DBMatch
 from src.models.squash import MatchPlayer as DBMatchPlayer
 from src.resolvers.squash import scoring
-from src.schemas.squash.enums import MatchStatus
-from src.schemas.squash.players import HeadToHeadResponse, PlayerStatsResponse
+from src.schemas.squash.enums import MatchFormat, MatchStatus
+from src.schemas.squash.players import (
+    HeadToHeadResponse,
+    PlayerRecord,
+    PlayerStatsResponse,
+)
 
 
 def _completed_with(*player_ids: uuid.UUID) -> List[DBMatch]:
@@ -50,9 +54,25 @@ def win_rate(won: int, lost: int) -> Optional[float]:
 
 
 def get_player_stats(player_id: uuid.UUID) -> PlayerStatsResponse:
+    matches = _completed_with(player_id)
+    return PlayerStatsResponse(
+        player_id=player_id,
+        **record(matches, player_id).model_dump(),
+        singles=record(
+            (m for m in matches if m.format == MatchFormat.SINGLES.value), player_id
+        ),
+        doubles=record(
+            (m for m in matches if m.format == MatchFormat.DOUBLES.value), player_id
+        ),
+    )
+
+
+def record(matches: Iterable[DBMatch], player_id: uuid.UUID) -> PlayerRecord:
+    """The player's record across these completed matches, each of which
+    they played in."""
+    matches = list(matches)
     matches_won = matches_drawn = games_won = games_lost = 0
     points_won = points_lost = 0
-    matches = _completed_with(player_id)
     for match in matches:
         side = _side(match, player_id)
         if match.winning_side is None:
@@ -72,8 +92,7 @@ def get_player_stats(player_id: uuid.UUID) -> PlayerStatsResponse:
             games_lost += winner == 2
 
     matches_lost = len(matches) - matches_won - matches_drawn
-    return PlayerStatsResponse(
-        player_id=player_id,
+    return PlayerRecord(
         matches_played=len(matches),
         matches_won=matches_won,
         matches_lost=matches_lost,
