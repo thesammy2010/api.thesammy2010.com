@@ -391,3 +391,28 @@ a game left unfinished, such as when the court time runs out, doesn't count.
 `/squash/players/{id}/stats` is a player's record, draws included, and
 `/squash/players/{id}/head-to-head/{opponent_id}` their matches against one
 other player, counting doubles where they were on opposite sides.
+
+Venues are kept in `/squash/venues`, which only admins add to and change, and a
+match refers to one by `venue_id` (its response also gives the name). Matches
+can be listed by venue with `GET /squash/matches?venue_id=...`.
+
+`GET /squash/ratings` is an Elo ladder over every completed match: everyone
+starts on 1000, a win against a higher rated player moves both further, and in
+doubles a pair plays as the average of the two, both partners moving together.
+`?format=singles` or `doubles` rates each on its own. It's replayed from the
+matches on every request, so correcting an old result updates every rating
+after it. `/squash/players/{id}/ratings` is one player's history, match by
+match.
+
+Matches scored live keep every rally, so `/squash/matches/{id}/insights` and
+`/squash/players/{id}/insights` can show:
+
+- points won on serve and on receive;
+- the longest run of points;
+- game points taken;
+- comebacks, meaning games won from 3 or more down, and leads lost;
+- deuce games.
+
+Who served is worked out from who won the rally before, or taken from
+`server_id` where it was recorded. Games entered whole only count towards deuce
+games.

@@ -42,7 +42,9 @@ class Match(Base):
     played_at: Mapped[Optional[datetime.datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
-    venue: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    venue_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("squash_venues.id"), nullable=True, index=True
+    )
     points_to: Mapped[int] = mapped_column(
         SmallInteger(), nullable=False, server_default="11"
     )
@@ -76,6 +78,7 @@ class Match(Base):
     games: Mapped[List["Game"]] = relationship(
         cascade="all, delete-orphan", order_by="Game.number"
     )
+    venue: Mapped[Optional["Venue"]] = relationship()  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<Match(id={self.id}, format={self.format}, status={self.status})>"

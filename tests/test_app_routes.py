@@ -108,6 +108,13 @@ class TestRouting:
             "matches/{match_id}/rallies",
             "matches/{match_id}/rallies/last",
             "matches/{match_id}/complete",
+            "matches/{match_id}/merge",
+            "matches/{match_id}/insights",
+            "venues",
+            "venues/{venue_id}",
+            "ratings",
+            "players/{player_id}/ratings",
+            "players/{player_id}/insights",
         ],
     )
     def test_every_squash_resource_is_reachable(self, resource: str):
@@ -164,7 +171,7 @@ class TestRouting:
         assert ROLE_RANK[UserRole.SQUASH] < ROLE_RANK[UserRole.VIEWER]
         assert outside == []
 
-    def test_managing_squash_players_is_admin_only(self):
+    def test_managing_squash_players_and_venues_is_admin_only(self):
         admin = {
             route_ids(route)
             for route in ROUTES
@@ -172,7 +179,12 @@ class TestRouting:
             and _required_role(route) == UserRole.ADMIN
         }
 
-        assert admin == {"POST /squash/players", "PUT /squash/players/{player_id}"}
+        assert admin == {
+            "POST /squash/players",
+            "PUT /squash/players/{player_id}",
+            "POST /squash/venues",
+            "PUT /squash/venues/{venue_id}",
+        }
 
     def test_no_two_routes_share_a_method_and_path(self):
         """A duplicate is unreachable: the first declared one always wins."""
@@ -256,6 +268,7 @@ class TestOpenApi:
             ("/squash/matches", "post"),
             ("/squash/matches/{match_id}/games/{number}", "put"),
             ("/squash/matches/{match_id}/rallies", "post"),
+            ("/squash/venues", "post"),
         ],
     )
     def test_the_write_endpoints_document_a_body(self, path: str, method: str):

@@ -10,6 +10,7 @@ from src.models.squash import Match as DBMatch
 from src.models.squash import MatchPlayer as DBMatchPlayer
 from src.models.squash import Player as DBPlayer
 from src.models.squash import Rally as DBRally
+from src.models.squash import Venue as DBVenue
 from src.resolvers.squash import scoring
 from src.resolvers.squash.players import NotAllowed, NotFound, SquashCaller
 from src.schemas.squash.enums import MatchStatus
@@ -49,7 +50,8 @@ def to_response(match: DBMatch) -> MatchResponse:
         format=match.format,
         status=match.status,
         played_at=match.played_at,
-        venue=match.venue,
+        venue_id=match.venue_id,
+        venue=match.venue.name if match.venue else None,
         points_to=match.points_to,
         best_of=match.best_of,
         notes=match.notes,
@@ -158,6 +160,8 @@ def get_matches(request: ListMatchesRequest) -> List[DBMatch]:
         conditions.append(DBMatch.status == request.status.value)
     if request.format:
         conditions.append(DBMatch.format == request.format.value)
+    if request.venue_id:
+        conditions.append(DBMatch.venue_id == request.venue_id)
     if request.after:
         conditions.append(DBMatch.played_at >= request.after)
     if request.before:
@@ -183,7 +187,14 @@ def get_match(match_id: uuid.UUID) -> Optional[DBMatch]:
 
 def _apply(match: DBMatch, request: MatchRequest) -> None:
     _check_players(request.players)
-    fields = request.model_dump(exclude={"players"})
+    venue = None
+    if request.venue_id:
+        venue = session.get(DBVenue, request.venue_id)
+        if venue is None:
+            raise NotFound(f"Venue {request.venue_id} not found")
+    # Set through the relationship, so the response's venue name is current
+    match.venue = venue
+    fields = request.model_dump(exclude={"players", "venue_id"})
     fields["format"] = request.format.value
     fields["status"] = request.status.value
     for field, value in fields.items():
