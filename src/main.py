@@ -19,6 +19,8 @@ from src.routers.go_heavier import (
 )
 from src.routers.squash import matches as squash_matches
 from src.routers.squash import players as squash_players
+from src.routers.squash import reports as squash_reports
+from src.routers.squash import venues as squash_venues
 
 dotenv.load_dotenv()
 
@@ -117,6 +119,19 @@ app = FastAPI(
             ),
         },
         {
+            "name": "squash venues",
+            "description": (
+                "Squash: where the group plays. Only admins add and change them."
+            ),
+        },
+        {
+            "name": "squash ratings and insights",
+            "description": (
+                "Squash: the Elo ladder, and what matches scored live show "
+                "point by point."
+            ),
+        },
+        {
             "name": "default",
             "description": "Static reference data, such as country and muscle group codes.",
         },
@@ -182,3 +197,5 @@ app.include_router(finance_budgets.router)
 app.include_router(finance_migrations.router)
 app.include_router(squash_players.router)
 app.include_router(squash_matches.router)
+app.include_router(squash_venues.router)
+app.include_router(squash_reports.router)

@@ -82,7 +82,7 @@ def require_squash_admin(
     if not caller.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: only an admin can manage players",
+            detail="Permission denied: only an admin can manage players and venues",
         )
     return caller
 

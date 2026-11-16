@@ -25,6 +25,9 @@ class ListMatchesRequest(PaginationParams):
     format: Optional[MatchFormat] = Field(
         description="Only list singles or only doubles", default=None
     )
+    venue_id: Optional[UUID] = Field(
+        description="Only list matches played at this venue", default=None
+    )
     after: Optional[datetime.datetime] = Field(
         description="Only list matches played at or after this", default=None
     )
@@ -58,8 +61,8 @@ class MatchRequest(BaseModel):
     played_at: Optional[datetime.datetime] = Field(
         description="When it's arranged for, or was played", default=None
     )
-    venue: Optional[str] = Field(
-        description="Where it's played", max_length=255, default=None
+    venue_id: Optional[UUID] = Field(
+        description="Where it's played, one of /squash/venues", default=None
     )
     points_to: int = Field(
         description="What a game is played to. It goes on past this from one "
@@ -158,7 +161,8 @@ class MatchResponse(BaseModel):
     format: MatchFormat
     status: MatchStatus
     played_at: Optional[datetime.datetime]
-    venue: Optional[str]
+    venue_id: Optional[UUID]
+    venue: Optional[str] = Field(description="The venue's name, for showing")
     points_to: int
     best_of: Optional[int]
     notes: Optional[str]
