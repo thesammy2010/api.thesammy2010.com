@@ -19,6 +19,7 @@ from src.schemas.squash.matches import (
     ListMatchesRequest,
     MatchRequest,
     MatchResponse,
+    MergeMatchesRequest,
     RallyRequest,
     RallyResponse,
 )
@@ -137,6 +138,25 @@ def delete_match(match_id: Annotated[str, uuid.UUID], caller: Caller) -> Respons
     if not _handle(lambda: matches.delete_match(match_uuid, caller)):
         raise HTTPException(status_code=404, detail="Match not found")
     return Response(status_code=204)
+
+
+@router.post("/matches/{match_id}/merge", response_model=MatchResponse)
+def merge_matches(
+    match_id: Annotated[str, uuid.UUID],
+    request: MergeMatchesRequest,
+    caller: Caller,
+) -> MatchResponse:
+    """Merges two matches between the same players into one, such as one
+    recorded as 2 games and another as 1 more. Whichever was played first is
+    kept and returned, with the other's games added after its own, and the
+    other is deleted. Players on opposite sides in the other are fine, its
+    scores are turned round to match. The merged match has no `best_of`,
+    and is completed only if both were, with the result over all the games.
+    400 for different players or pairs, a different `points_to`, a
+    cancelled match, or when the earlier one's last game is unfinished. 403
+    unless the caller can change both."""
+    match_uuid = parse_uuid(match_id, "match")
+    return _found(_handle(lambda: matches.merge_matches(match_uuid, request, caller)))
 
 
 @router.put("/matches/{match_id}/games/{number}", response_model=MatchResponse)
