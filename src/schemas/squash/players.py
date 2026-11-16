@@ -45,10 +45,9 @@ class PlayerResponse(PlayerRequest):
     updated_at: Optional[datetime.datetime] = None
 
 
-class PlayerStatsResponse(BaseModel):
-    """A player's record across completed matches."""
+class PlayerRecord(BaseModel):
+    """A player's record across a set of completed matches."""
 
-    player_id: UUID
     matches_played: int
     matches_won: int
     matches_lost: int
@@ -63,6 +62,14 @@ class PlayerStatsResponse(BaseModel):
         description="The share of matches won out of those won or lost, from 0 "
         "to 1, so draws don't count either way. Null before any are"
     )
+
+
+class PlayerStatsResponse(PlayerRecord):
+    """A player's record across completed matches, and split by format."""
+
+    player_id: UUID
+    singles: PlayerRecord = Field(description="Their record in singles alone")
+    doubles: PlayerRecord = Field(description="Their record in doubles alone")
 
 
 class HeadToHeadResponse(BaseModel):
