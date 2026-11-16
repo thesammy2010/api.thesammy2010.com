@@ -167,11 +167,13 @@ def set_game(
     caller: Caller,
 ) -> MatchResponse:
     """Sets a game's score, adding it if it's the next game, for entering
-    scores after the fact. To score live, post rallies instead. Scoring the
-    first game starts a scheduled match, and the game that decides a
-    best-of match completes it. 400 for a score that couldn't happen, such
-    as 12-5 in a game to 11, a game after the match was won, or a change to
-    a game scored rally by rally."""
+    scores after the fact or correcting one, including after the match is
+    over. To score live, post rallies instead. Setting the score of a game
+    scored live replaces its rallies, so its point-by-point is dropped.
+    Scoring the first game starts a scheduled match, and the game that
+    decides a best-of match completes it; a change that leaves no winner
+    reopens it. 400 for a score that couldn't happen, such as 12-5 in a game
+    to 11 or a game after the match was won."""
     match_uuid = parse_uuid(match_id, "match")
     return _found(_handle(lambda: matches.set_game(match_uuid, number, game, caller)))
 
