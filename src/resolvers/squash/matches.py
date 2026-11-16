@@ -20,6 +20,7 @@ from src.schemas.squash.matches import (
     MatchPlayerRequest,
     MatchRequest,
     MatchResponse,
+    MergeMatchesRequest,
     RallyRequest,
     RallyResponse,
 )
@@ -252,6 +253,105 @@ def delete_match(match_id: uuid.UUID, caller: SquashCaller) -> bool:
     session.delete(match)
     session.commit()
     return True
+
+
+def sides_swapped(match: DBMatch, other: DBMatch) -> bool:
+    """Whether the same players were on the opposite sides of other, such as
+    after swapping ends. Raises when they aren't the same players and pairs."""
+    sides = {player.player_id: player.side for player in match.players}
+    other_sides = {player.player_id: player.side for player in other.players}
+    if match.format != other.format or sides.keys() != other_sides.keys():
+        raise scoring.InvalidScore("Only matches between the same players can merge")
+    if sides == other_sides:
+        return False
+    if all(other_sides[player] == 3 - side for player, side in sides.items()):
+        return True
+    raise scoring.InvalidScore("The players were paired differently in each match")
+
+
+def played_order(match: DBMatch) -> tuple:
+    # Undated matches count as played last
+    return (match.played_at is None, match.played_at, match.created_at)
+
+
+def merged_status(first: DBMatch, second: DBMatch) -> str:
+    if first.status == second.status == MatchStatus.COMPLETED.value:
+        return MatchStatus.COMPLETED.value
+    if first.games or second.games:
+        return MatchStatus.IN_PROGRESS.value
+    return MatchStatus.SCHEDULED.value
+
+
+def merge_matches(
+    match_id: uuid.UUID, request: MergeMatchesRequest, caller: SquashCaller
+) -> Optional[DBMatch]:
+    """Folds two matches between the same players into one, such as a
+    session recorded as 2 games and then 1 more.
+
+    The match played first is kept, with the other's games after its own,
+    and the other is deleted. The merged match has no best_of, since its
+    games no longer need to fit one, and is completed only if both were.
+    """
+    match = get_match(match_id)
+    if not match:
+        return None
+    other = get_match(request.match_id)
+    if not other:
+        raise NotFound(f"Match {request.match_id} not found")
+    if match.id == other.id:
+        raise scoring.InvalidScore("A match can't merge with itself")
+    _check_can_change(match, caller)
+    _check_can_change(other, caller)
+    if MatchStatus.CANCELLED.value in (match.status, other.status):
+        raise scoring.InvalidScore("A cancelled match can't merge")
+    if match.points_to != other.points_to:
+        raise scoring.InvalidScore(
+            "Only matches with games to the same points can merge"
+        )
+    first, second = sorted((match, other), key=played_order)
+    swapped = sides_swapped(first, second)
+    if (
+        first.games
+        and second.games
+        and not scoring.game_winner(
+            first.games[-1].side1_points, first.games[-1].side2_points, first.points_to
+        )
+    ):
+        raise scoring.InvalidScore(
+            "The earlier match's last game is unfinished, so finish or delete it first"
+        )
+
+    try:
+        status = merged_status(first, second)
+        offset = len(first.games)
+        # Otherwise loading a game's rallies would flush it while it's out of
+        # both matches, deleting it as an orphan
+        with session.no_autoflush:
+            moved = list(second.games)
+            second.games.clear()
+            for game in moved:
+                game.number += offset
+                if swapped:
+                    game.side1_points, game.side2_points = (
+                        game.side2_points,
+                        game.side1_points,
+                    )
+                    for rally in game.rallies:
+                        rally.won_by_side = 3 - rally.won_by_side
+                first.games.append(game)
+
+        first.status = status
+        first.best_of = None
+        first.venue = first.venue or second.venue
+        if second.notes and second.notes != first.notes:
+            first.notes = "\n".join(filter(None, (first.notes, second.notes)))
+        session.delete(second)
+        _settle(first)
+    except Exception:
+        session.rollback()
+        raise
+    session.commit()
+    return first
 
 
 def set_game(

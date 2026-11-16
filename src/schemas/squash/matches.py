@@ -122,6 +122,12 @@ class GameResponse(GameRequest):
     )
 
 
+class MergeMatchesRequest(BaseModel):
+    """Another match between the same players, to fold into one."""
+
+    match_id: UUID = Field(description="The match to merge with this one")
+
+
 class RallyRequest(BaseModel):
     won_by_side: int = Field(description="The side that won the rally", ge=1, le=2)
     version: int = Field(
