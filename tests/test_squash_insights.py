@@ -7,6 +7,7 @@ from src.resolvers.squash.insights import (
     Tally,
     player_insights,
     replay_game,
+    replay_match,
     servers,
     went_to_deuce,
 )
@@ -73,7 +74,12 @@ class TestTally:
 
 
 def _game(*won_by, side1=None, side2=None):
-    rallies = [SimpleNamespace(won_by_side=won, server_id=None) for won in won_by]
+    rallies = [
+        SimpleNamespace(
+            won_by_side=won, server_id=None, decision=None, appealed_by_side=None
+        )
+        for won in won_by
+    ]
     return SimpleNamespace(
         side1_points=won_by.count(1) if side1 is None else side1,
         side2_points=won_by.count(2) if side2 is None else side2,
@@ -110,3 +116,35 @@ class TestPlayerInsights:
 
         assert insights.games_scored_live == 0
         assert (insights.deuce_games_won, insights.deuce_games_lost) == (1, 0)
+
+
+def _call(won_by_side, decision, appealed_by_side):
+    return SimpleNamespace(
+        won_by_side=won_by_side,
+        server_id=None,
+        decision=decision,
+        appealed_by_side=appealed_by_side,
+    )
+
+
+class TestCalls:
+    def test_lets_are_replayed_and_appeals_counted_by_call(self):
+        game = _game(*([1] * 11))
+        game.rallies[3:3] = [_call(None, "let", 2), _call(None, "let", None)]
+        game.rallies.append(_call(1, "stroke", 1))
+        game.rallies.append(_call(2, "no_let", 1))
+        game.side1_points, game.side2_points = 12, 1
+        replay = replay_match(_match(game))[0]
+
+        assert replay.lets == 2
+        assert replay.tallies[1].rallies_played == 13
+        assert (replay.tallies[2].lets, replay.tallies[1].lets) == (1, 0)
+        assert (replay.tallies[1].strokes, replay.tallies[1].no_lets) == (1, 1)
+
+    def test_a_let_doesnt_change_who_serves(self):
+        game = _game(2, 1)
+        game.rallies.insert(1, _call(None, "let", 1))
+        replay = replay_match(_match(game))[0]
+
+        # Side 2 won the first point, so served the let and the point after
+        assert replay.tallies[2].serves_played == 1

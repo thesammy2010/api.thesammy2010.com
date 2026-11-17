@@ -366,6 +366,16 @@ curl -X POST localhost:8000/squash/matches -H 'Content-Type: application/json' \
 curl -X POST localhost:8000/squash/matches/{id}/rallies \
   -H 'Content-Type: application/json' -d '{"won_by_side": 1, "version": 14}'
 
+# a let: replayed, no point, same server. appealed_by_side is optional
+curl -X POST localhost:8000/squash/matches/{id}/rallies \
+  -H 'Content-Type: application/json' \
+  -d '{"decision": "let", "appealed_by_side": 2, "version": 15}'
+
+# a stroke to side 2, or a no let against side 2 (the point to side 1)
+curl -X POST localhost:8000/squash/matches/{id}/rallies \
+  -H 'Content-Type: application/json' \
+  -d '{"won_by_side": 2, "decision": "stroke", "version": 16}'
+
 # take back a point given to the wrong side
 curl -X DELETE 'localhost:8000/squash/matches/{id}/rallies/last?version=15'
 
@@ -411,7 +421,8 @@ Matches scored live keep every rally, so `/squash/matches/{id}/insights` and
 - the longest run of points;
 - game points taken;
 - comebacks, meaning games won from 3 or more down, and leads lost;
-- deuce games.
+- deuce games;
+- each side's appeals by the call they got: lets, strokes and no lets.
 
 Who served is worked out from who won the rally before, or taken from
 `server_id` where it was recorded. Games entered whole only count towards deuce

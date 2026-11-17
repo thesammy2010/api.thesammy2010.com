@@ -79,6 +79,11 @@ class RallyInsightsResponse(BaseModel):
     game_points: int = Field(description="Rallies that would have won them the game")
     game_points_won: int
     game_point_win_rate: Optional[float]
+    lets: int = Field(
+        description="Lets they appealed for, where who appealed was recorded"
+    )
+    strokes: int = Field(description="Strokes they were awarded")
+    no_lets: int = Field(description="Appeals of theirs turned down")
 
     @classmethod
     def from_tally(cls, tally, side: Optional[int] = None) -> "RallyInsightsResponse":
@@ -98,6 +103,9 @@ class RallyInsightsResponse(BaseModel):
             game_points=tally.game_points,
             game_points_won=tally.game_points_won,
             game_point_win_rate=rate(tally.game_points_won, tally.game_points),
+            lets=tally.lets,
+            strokes=tally.strokes,
+            no_lets=tally.no_lets,
         )
 
 
@@ -130,6 +138,7 @@ class GameInsightsResponse(BaseModel):
     number: int
     scored_live: bool
     went_to_deuce: bool
+    lets: int = Field(description="Every let played, whoever appealed")
     comeback_by_side: Optional[int] = Field(
         description="The side that won it from 3 or more points down, if one did"
     )

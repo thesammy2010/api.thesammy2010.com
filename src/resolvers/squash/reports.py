@@ -129,6 +129,7 @@ def get_match_insights(match: DBMatch) -> MatchInsightsResponse:
             GameInsightsResponse(
                 number=game.number,
                 scored_live=replay is not None,
+                lets=replay.lets if replay else 0,
                 went_to_deuce=insights.went_to_deuce(
                     game.side1_points, game.side2_points, match.points_to
                 ),

@@ -142,13 +142,28 @@ class Game(Base):
 
 
 class Rally(Base):
-    """One rally of a game scored live, and who won it."""
+    """One rally of a game scored live, and who won it.
+
+    A let has no winner: it's replayed, so it's kept only as a record of the
+    call.
+    """
 
     __tablename__ = "squash_rallies"
     __table_args__ = (
         UniqueConstraint("game_id", "number", name="uq_squash_rallies_game_number"),
         CheckConstraint("number > 0", name="number_positive"),
         CheckConstraint("won_by_side IN (1, 2)", name="won_by_side_is_a_side"),
+        CheckConstraint(
+            "decision IS NULL OR decision IN ('let', 'stroke', 'no_let')",
+            name="decision_is_a_call",
+        ),
+        CheckConstraint(
+            "(won_by_side IS NULL) = (decision IS NOT NULL AND decision = 'let')",
+            name="only_a_let_has_no_winner",
+        ),
+        CheckConstraint(
+            "appealed_by_side IN (1, 2)", name="appealed_by_side_is_a_side"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -159,7 +174,14 @@ class Rally(Base):
     )
     # 1 for the first rally of the game
     number: Mapped[int] = mapped_column(Integer(), nullable=False)
-    won_by_side: Mapped[int] = mapped_column(SmallInteger(), nullable=False)
+    # Null for a let
+    won_by_side: Mapped[Optional[int]] = mapped_column(SmallInteger(), nullable=True)
+    # One of RallyDecision, when a player appealed
+    decision: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    # Who appealed, when they did and it's known
+    appealed_by_side: Mapped[Optional[int]] = mapped_column(
+        SmallInteger(), nullable=True
+    )
     # Who served it, when that was recorded
     server_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("squash_players.id"), nullable=True
