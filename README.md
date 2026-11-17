@@ -1,9 +1,52 @@
 # TheSammy2010 API
 
-Available at: https://api.thesammy2010.com
+The backend for TheSammy2010 apps, at https://api.thesammy2010.com, with
+interactive docs at [`/docs`](https://api.thesammy2010.com/docs). It covers:
 
-### Local development requirements
-- pyenv
+- **Go Heavier** (`/go-heavier`): a gym tracker of locations, exercises,
+  sessions and the sets logged in them, with stats, plus Apple Health data from
+  the iOS app.
+- **Finance** (`/finance`): personal spending, loaded from its Google Sheet,
+  with budgets and stats.
+- **Squash** (`/squash`): a group of friends' matches, scored live from their
+  phones, with venues, records, an Elo ladder and point-by-point insights.
+
+It's FastAPI on Postgres (SQLAlchemy and Alembic), deployed to Fly.io.
+
+## Access
+
+Every endpoint except the docs needs a Google Sign-In ID token as a Bearer
+token, from the website's or the iOS app's OAuth client. Signing in for the
+first time (`POST /users`) creates a `guest`, and an admin then gives them a
+role:
+
+| role | can use |
+| --- | --- |
+| `guest` | their own account, nothing else |
+| `squash` | `/squash`, once they're also added as a player |
+| `viewer` | as `squash`, and reading anything that allows `viewer` |
+| `editor` | as `viewer`, and writing |
+| `admin` | everything, including managing users |
+
+Go Heavier and Finance are `admin`-only for now. `GET /endpoints` maps every
+route to the role it needs.
+
+```bash
+# sign in, or see your account: {"id": "...", "role": "guest"}
+curl -X POST localhost:8000/users -H "Authorization: Bearer $TOKEN" | jq
+
+# as an admin: list users, and give one a role
+curl localhost:8000/admin/users -H "Authorization: Bearer $TOKEN" | jq
+curl -X PATCH localhost:8000/users/$USER_ID/role -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"role": "squash"}' | jq
+```
+
+A role changed straight in the database only takes effect after a restart,
+since the app's shared session caches users. Change roles through the API.
+
+## Local development
+
+You need pyenv and Postgres 17 (`brew install postgresql@17`).
 
 ```bash
 pyenv install 3.13.3
@@ -13,75 +56,81 @@ source .venv/bin/activate
 pip install poetry==2.1.3
 poetry install
 pre-commit install
+
+brew services start postgresql@17
+createdb api_thesammy2010_com
 ```
 
-Configuration comes from a `.env`, which is not tracked. Copy the example and
-fill it in:
+Configuration comes from a `.env`, which isn't tracked. Copy the example, then
+fill it in and point `DATABASE_URL` at your local database:
 
 ```bash
 cp .env.example .env
 ```
 
-`GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` is a service account key with read access
-to the spreadsheet, base64 encoded. It is only needed to load data from the
-sheet. In production these come from the Fly app's secrets rather than a file.
+`GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` is a service account key with access to
+the spreadsheets, base64 encoded. It's only needed to load data from them. In
+production, configuration comes from the Fly app's secrets rather than a file.
 
+`DISABLE_AUTH=true` skips checking Google tokens (never in production), and
+every request is then the same `test-user`. Leave it off to sign in as yourself.
 
-### Runnning the API
-```bash
-fastapi dev src/main.py
-```
+### Running the API
 
-```http request
-POST /users
-Authorization: Bearer <Google OAuth2 token>
-```
-```json
-{
-  "user_id": "<uuid>"
-}
-```
-or
-```bash
-curl \
-  -X POST localhost:8000/users \
-  -H "Authorization: Bearer $TOKEN" | jq
-```
-
-### Connecting to the database
-```bash
-fly postgres connect -a thesammy2010
-```
-
-or
-```bash
-fly ssh console -a api-thesammy2010-com
-echo $DATABASE_URL
-fly proxy 15432:5432 -a thesammy2010
-```
-
-### Running migrations
 ```bash
 alembic upgrade head
+fastapi dev src/main.py   # http://localhost:8000/docs
 ```
 
-Deploying no longer runs these. `alembic upgrade head` has to be run against
-production deliberately, so a schema change and the deploy that needs it are not
-coupled to each other by accident.
+### Tests
 
-CI runs them from empty against a throwaway Postgres service container, never
-against a real database, and then runs `alembic check` so the models and the
-migrations cannot drift apart unnoticed.
-
-Try to use `alembic revision --autogenerate -m "message"` to create new migrations.
-
-### db for local development
 ```bash
-docker compose up -d postgres
-psql -U api -d api_thesammy2010_com
+pytest
+pre-commit run --all-files   # isort and ruff
 ```
 
-### Go Heavier access
+The tests that touch the database use the one in `.env`. CI runs the
+migrations from empty against a throwaway Postgres, then `alembic check` so the
+models and migrations can't drift apart unnoticed, then the tests.
+
+### Migrations
+
+Create them with `alembic revision --autogenerate -m "message"`, then check
+what it generated: it can't know how to move existing data. Alembic reads
+`DATABASE_URL` from the environment, so export the `.env` first
+(`set -a; . ./.env; set +a`).
+
+### A copy of production locally
+
+```bash
+fly proxy 15432:5432 -a thesammy2010 &
+# DATABASE_URL from `fly ssh console -a api-thesammy2010-com -C 'printenv DATABASE_URL'`,
+# with the host changed to localhost:15432
+pg_dump -Fc --no-owner --no-acl "$PROD_DATABASE_URL" -f prod.dump
+
+dropdb --force api_thesammy2010_com && createdb api_thesammy2010_com
+pg_restore --no-owner --no-acl -d api_thesammy2010_com prod.dump
+```
+
+It's real personal data (finance and health included), so keep the dump off
+anywhere shared, and delete it when you're done.
+
+## Deploying
+
+Merging to `main` deploys: GitHub Actions runs `flyctl deploy`, and Fly runs
+`alembic upgrade head` as the release command before switching to the new
+version, so a failed migration stops the deploy. The app runs on one machine
+that stops when idle and starts on the next request.
+
+```bash
+fly status -a api-thesammy2010-com
+fly releases -a api-thesammy2010-com
+fly postgres connect -a thesammy2010   # a psql shell on production
+```
+
+## Go Heavier
+
+### Access
 
 Everything under `/go-heavier`, Apple Health data included, is `admin`-only for
 now. Each route still has its own `viewer` (read) or `editor` (write) gate
@@ -298,7 +347,7 @@ curl -X POST localhost:8000/go-heavier/migrations \
 Requires `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` and `GOOGLE_SPREADSHEET_ID`; without
 them the endpoint returns `503`.
 
-### Finance
+## Finance
 
 Everything under `/finance` is `admin`-only: spends (`/finance/transactions`),
 the categories, merchants and payment methods they refer to, each category's
@@ -340,7 +389,7 @@ a linked row with no relation is taken to be a fee. Links are one level deep.
 Requires `FINANCE_SPREADSHEET_ID`, and the service account needs edit access to
 that sheet to write the ids back.
 
-### Squash
+## Squash
 
 Everything under `/squash` is for the squash group's players with the `squash`
 role or above. `squash` sits between `guest` and `viewer` and opens nothing but
@@ -376,11 +425,11 @@ curl -X POST localhost:8000/squash/matches/{id}/rallies \
   -H 'Content-Type: application/json' \
   -d '{"won_by_side": 2, "decision": "stroke", "version": 16}'
 
-# take back a point given to the wrong side
-curl -X DELETE 'localhost:8000/squash/matches/{id}/rallies/last?version=15'
+# take back the last point, such as one given to the wrong side
+curl -X DELETE 'localhost:8000/squash/matches/{id}/rallies/last?version=17'
 
-# follow it from another phone: 204 until it moves past version 15
-curl 'localhost:8000/squash/matches/{id}?since_version=15'
+# follow it from another phone: 204 until it moves past version 18
+curl 'localhost:8000/squash/matches/{id}?since_version=18'
 ```
 
 Each response gives the score, `serving_side`, the side to serve next, and
@@ -391,14 +440,27 @@ The others follow along by polling every second or two with `since_version`. The
 point that decides a best-of match completes it, and undoing it reopens it.
 `GET /squash/matches/{id}/rallies` is the point-by-point history. A game played
 without scoring it live can be entered whole with
-`PUT /squash/matches/{id}/games/{number}`.
+`PUT /squash/matches/{id}/games/{number}`. That also corrects a game scored
+live, dropping its rallies, since they'd no longer add up to the new score.
+
+A let (`"decision": "let"`) is kept as a rally with no winner, so it's in the
+history and can be undone, but adds no point and the same side serves again. A
+stroke or a no let is a point like any other, with the call and who appealed
+recorded.
+
+Two matches between the same players, such as 2 games recorded and then 1
+more, can be merged with `POST /squash/matches/{id}/merge`
+(`{"match_id": "<the other>"}`). The one played first is kept with the other's
+games after its own, turned round if the players had swapped sides. The merged
+match has no `best_of`.
 
 To just play games until you stop, leave out `best_of`. The match then never
 ends itself: finish it with `POST /squash/matches/{id}/complete?version=N`.
 The side that won more games wins, level is a draw (`winning_side` null), and
 a game left unfinished, such as when the court time runs out, doesn't count.
 
-`/squash/players/{id}/stats` is a player's record, draws included, and
+`/squash/players/{id}/stats` is a player's record, draws included, overall and
+split into singles and doubles, and
 `/squash/players/{id}/head-to-head/{opponent_id}` their matches against one
 other player, counting doubles where they were on opposite sides.
 
