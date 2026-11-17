@@ -14,6 +14,8 @@ from src.resolvers.squash.scoring import SIDES
 
 # Winning a game from this many points down or more counts as a comeback
 COMEBACK_DEFICIT = 3
+# The Tally field each RallyDecision value is counted in
+CALLS = {"let": "lets", "stroke": "strokes", "no_let": "no_lets"}
 
 
 @dataclasses.dataclass
@@ -33,6 +35,11 @@ class Tally:
     # Rallies that would have won the game
     game_points: int = 0
     game_points_won: int = 0
+    # Their appeals, by the call made. Lets are only counted for a side when
+    # who appealed was recorded
+    lets: int = 0
+    strokes: int = 0
+    no_lets: int = 0
 
     def add(self, other: "Tally") -> None:
         for field in dataclasses.fields(self):
@@ -48,6 +55,8 @@ class GameReplay:
     tallies: Dict[int, Tally]
     # The most each side was ever behind by
     deepest_deficit: Dict[int, int]
+    # Every let, whoever appealed
+    lets: int = 0
 
 
 def went_to_deuce(side1: int, side2: int, points_to: int) -> bool:
@@ -111,19 +120,29 @@ def replay_game(
 
 
 def replay_match(match) -> List[Optional[GameReplay]]:
-    """Each game's replay in order, or None for one not scored live."""
+    """Each game's replay in order, or None for one not scored live.
+
+    Lets are left out of the points, being replayed, but counted with the
+    strokes and no lets as the calls each side's appeals got.
+    """
     player_sides = {player.player_id: player.side for player in match.players}
     replays: List[Optional[GameReplay]] = []
     previous_winner = None
     for game in match.games:
         if game.rallies:
-            won_by = [rally.won_by_side for rally in game.rallies]
-            recorded = [player_sides.get(rally.server_id) for rally in game.rallies]
-            replays.append(
-                replay_game(
-                    won_by, servers(won_by, recorded, previous_winner), match.points_to
-                )
+            points = [rally for rally in game.rallies if rally.won_by_side]
+            won_by = [rally.won_by_side for rally in points]
+            recorded = [player_sides.get(rally.server_id) for rally in points]
+            replay = replay_game(
+                won_by, servers(won_by, recorded, previous_winner), match.points_to
             )
+            for rally in game.rallies:
+                replay.lets += rally.decision == "let"
+                if rally.decision and rally.appealed_by_side:
+                    tally = replay.tallies[rally.appealed_by_side]
+                    name = CALLS[rally.decision]
+                    setattr(tally, name, getattr(tally, name) + 1)
+            replays.append(replay)
         else:
             replays.append(None)
         previous_winner = scoring.game_winner(

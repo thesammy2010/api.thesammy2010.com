@@ -35,10 +35,29 @@ def _serving_side(match: DBMatch) -> Optional[int]:
     if not match.games:
         return None
     last = match.games[-1]
+    won = [rally for rally in last.rallies if rally.won_by_side is not None]
+    if last.rallies and not won:
+        # Only lets so far, so whoever served the first one serves again
+        return _side_of(match, last.rallies[-1].server_id) or (
+            scoring.serving_side(
+                (match.games[-2].side1_points, match.games[-2].side2_points),
+                None,
+                match.points_to,
+            )
+            if len(match.games) > 1
+            else None
+        )
     return scoring.serving_side(
         (last.side1_points, last.side2_points),
-        last.rallies[-1].won_by_side if last.rallies else None,
+        won[-1].won_by_side if won else None,
         match.points_to,
+    )
+
+
+def _side_of(match: DBMatch, player_id: Optional[uuid.UUID]) -> Optional[int]:
+    return next(
+        (player.side for player in match.players if player.player_id == player_id),
+        None,
     )
 
 
@@ -348,7 +367,10 @@ def merge_matches(
                         game.side1_points,
                     )
                     for rally in game.rallies:
-                        rally.won_by_side = 3 - rally.won_by_side
+                        if rally.won_by_side:
+                            rally.won_by_side = 3 - rally.won_by_side
+                        if rally.appealed_by_side:
+                            rally.appealed_by_side = 3 - rally.appealed_by_side
                 first.games.append(game)
 
         first.status = status
@@ -423,10 +445,7 @@ def delete_last_game(match_id: uuid.UUID, caller: SquashCaller) -> Optional[DBMa
 def _check_server(match: DBMatch, server_id: Optional[uuid.UUID]) -> None:
     if server_id is None:
         return
-    side = next(
-        (player.side for player in match.players if player.player_id == server_id),
-        None,
-    )
+    side = _side_of(match, server_id)
     if side is None:
         raise scoring.InvalidScore(f"Player {server_id} isn't playing in this match")
     serving = _serving_side(match)
@@ -438,7 +457,8 @@ def add_rally(
     match_id: uuid.UUID, rally: RallyRequest, caller: SquashCaller
 ) -> Optional[DBMatch]:
     """Records who won a rally, adding a point to the game in play, or
-    starting the next game when the last one's finished.
+    starting the next game when the last one's finished. A let adds no
+    point, but is kept as a record of the call.
 
     Only taken against the match's current version, so when two phones score
     the same rally the second is turned away rather than adding a point.
@@ -477,12 +497,14 @@ def add_rally(
                 id=uuid.uuid4(),
                 number=len(game.rallies) + 1,
                 won_by_side=rally.won_by_side,
+                decision=rally.decision.value if rally.decision else None,
+                appealed_by_side=rally.appealing_side,
                 server_id=rally.server_id,
             )
         )
         if rally.won_by_side == 1:
             game.side1_points += 1
-        else:
+        elif rally.won_by_side == 2:
             game.side2_points += 1
         _settle(match, scored=True)
     except Exception:
@@ -512,7 +534,7 @@ def undo_rally(
         rally = game.rallies.pop()
         if rally.won_by_side == 1:
             game.side1_points -= 1
-        else:
+        elif rally.won_by_side == 2:
             game.side2_points -= 1
         if not game.rallies:
             match.games.pop()
@@ -530,12 +552,15 @@ def get_rallies(match: DBMatch) -> List[RallyResponse]:
     for game in match.games:
         points = {1: 0, 2: 0}
         for rally in game.rallies:
-            points[rally.won_by_side] += 1
+            if rally.won_by_side is not None:
+                points[rally.won_by_side] += 1
             rallies.append(
                 RallyResponse(
                     game=game.number,
                     number=rally.number,
                     won_by_side=rally.won_by_side,
+                    decision=rally.decision,
+                    appealed_by_side=rally.appealed_by_side,
                     server_id=rally.server_id,
                     side1_points=points[1],
                     side2_points=points[2],

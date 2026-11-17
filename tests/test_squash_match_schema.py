@@ -57,3 +57,24 @@ class TestRallyRequest:
         assert RallyRequest(won_by_side=1, version=7).version == 7
         with pytest.raises(ValidationError, match="version"):
             RallyRequest(won_by_side=1)
+
+    def test_a_let_has_no_winner(self):
+        RallyRequest(decision="let", appealed_by_side=2, version=1)
+        with pytest.raises(ValidationError, match="no side wins"):
+            RallyRequest(won_by_side=1, decision="let", version=1)
+
+    def test_anything_but_a_let_needs_a_winner(self):
+        with pytest.raises(ValidationError, match="won_by_side is needed"):
+            RallyRequest(decision="stroke", version=1)
+
+    @pytest.mark.parametrize("decision,appealed", [("stroke", 1), ("no_let", 2)])
+    def test_who_appealed_follows_from_the_call(self, decision, appealed):
+        rally = RallyRequest(won_by_side=1, decision=decision, version=1)
+
+        assert rally.appealing_side == appealed
+
+    def test_who_appealed_must_fit_the_call(self):
+        with pytest.raises(ValidationError, match="means side 1 appealed"):
+            RallyRequest(
+                won_by_side=1, decision="stroke", appealed_by_side=2, version=1
+            )

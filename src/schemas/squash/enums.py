@@ -15,4 +15,15 @@ class MatchStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class RallyDecision(str, enum.Enum):
+    """The referee's call when a player appeals for interference."""
+
+    # Replayed, with no point to either side and the same server
+    LET = "let"
+    # The point to the player who appealed
+    STROKE = "stroke"
+    # The appeal turned down, so the point to their opponent
+    NO_LET = "no_let"
+
+
 PLAYERS_PER_SIDE = {MatchFormat.SINGLES: 1, MatchFormat.DOUBLES: 2}

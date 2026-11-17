@@ -7,7 +7,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from src.schemas.squash.enums import PLAYERS_PER_SIDE, MatchFormat, MatchStatus
+from src.schemas.squash.enums import (
+    PLAYERS_PER_SIDE,
+    MatchFormat,
+    MatchStatus,
+    RallyDecision,
+)
 from src.schemas.utils import PaginationParams
 
 
@@ -120,8 +125,8 @@ class GameResponse(GameRequest):
         description="The side that won it, or null while it's still being played"
     )
     rallies: int = Field(
-        description="How many rallies were recorded for it. 0 for a game whose "
-        "score was set directly"
+        description="How many rallies were recorded for it, lets included. 0 "
+        "for a game whose score was set directly"
     )
 
 
@@ -132,7 +137,26 @@ class MergeMatchesRequest(BaseModel):
 
 
 class RallyRequest(BaseModel):
-    won_by_side: int = Field(description="The side that won the rally", ge=1, le=2)
+    won_by_side: Optional[int] = Field(
+        description="The side that won the point. Null for a let, which no one wins",
+        ge=1,
+        le=2,
+        default=None,
+    )
+    decision: Optional[RallyDecision] = Field(
+        description="The referee's call, when a player appealed. A let is "
+        "replayed, with no point and the same server. A stroke is the point "
+        "to the player who appealed, so `won_by_side` is their side, and a "
+        "no let the point to their opponent. Null for a rally played out",
+        default=None,
+    )
+    appealed_by_side: Optional[int] = Field(
+        description="The side that appealed for a let. Worked out from "
+        "`won_by_side` for a stroke or no let",
+        ge=1,
+        le=2,
+        default=None,
+    )
     version: int = Field(
         description="The match's version the point was scored against, from the "
         "last response or poll. 409 if it's since changed"
@@ -143,11 +167,40 @@ class RallyRequest(BaseModel):
         default=None,
     )
 
+    @model_validator(mode="after")
+    def validate_decision(self) -> "RallyRequest":
+        if self.decision == RallyDecision.LET:
+            if self.won_by_side is not None:
+                raise ValueError("A let is replayed, so no side wins it")
+            return self
+        if self.won_by_side is None:
+            raise ValueError("won_by_side is needed for anything but a let")
+        if self.appealed_by_side is not None and self.decision is None:
+            raise ValueError("appealed_by_side needs a decision")
+        if self.appealed_by_side is not None and (
+            self.appealed_by_side != self.appealing_side
+        ):
+            raise ValueError(
+                f"A {self.decision.value.replace('_', ' ')} for side "
+                f"{self.won_by_side} means side {self.appealing_side} appealed"
+            )
+        return self
+
+    @property
+    def appealing_side(self) -> Optional[int]:
+        if self.decision == RallyDecision.STROKE:
+            return self.won_by_side
+        if self.decision == RallyDecision.NO_LET:
+            return 3 - self.won_by_side
+        return self.appealed_by_side
+
 
 class RallyResponse(BaseModel):
     game: int = Field(description="The game it was in")
     number: int = Field(description="1 for the first rally of the game")
-    won_by_side: int
+    won_by_side: Optional[int] = Field(description="Null for a let")
+    decision: Optional[RallyDecision]
+    appealed_by_side: Optional[int]
     server_id: Optional[UUID]
     side1_points: int = Field(description="Side 1's score after it")
     side2_points: int = Field(description="Side 2's score after it")
