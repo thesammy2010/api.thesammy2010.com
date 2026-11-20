@@ -15,6 +15,14 @@ class MatchStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class AccessRequestStatus(str, enum.Enum):
+    # Waiting for an admin
+    PENDING = "pending"
+    # Made a player
+    APPROVED = "approved"
+    DECLINED = "declined"
+
+
 class RallyDecision(str, enum.Enum):
     """The referee's call when a player appeals for interference."""
 
