@@ -401,6 +401,15 @@ linked to their user the first time they use `/squash` (or straight away if
 they've already signed in). Only admins add and change players. The old
 `squash` role is no longer needed and does nothing more than `guest`.
 
+Someone signed in who isn't a player can ask to join instead of asking an admin
+some other way. They make, see and withdraw their request at
+`/squash/access-requests/me`, with an optional message. Admins list requests at
+`GET /squash/access-requests` (`?status=pending` for those waiting), and approve
+or decline each. Approving makes them a player: the one given as `player_id`,
+such as someone already recorded in matches, else the one they were before or
+the one added with their email, else a new player named after their Google
+account. Someone declined can withdraw the request and ask again.
+
 When someone deletes their account (or an admin deletes it), their player stays
 in every match they played, so everyone else's scores, ratings and unfinished
 matches carry on, but it's renamed "Deleted user", loses its email and account

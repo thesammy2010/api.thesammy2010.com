@@ -115,6 +115,10 @@ class TestRouting:
             "ratings",
             "players/{player_id}/ratings",
             "players/{player_id}/insights",
+            "access-requests",
+            "access-requests/me",
+            "access-requests/{request_id}/approve",
+            "access-requests/{request_id}/decline",
         ],
     )
     def test_every_squash_resource_is_reachable(self, resource: str):
@@ -123,8 +127,14 @@ class TestRouting:
         assert f"/squash/{resource}" in paths
 
     def test_every_squash_route_is_for_the_groups_players(self):
-        """Being in the group is what lets a friend in, on top of their role."""
-        squash = [route for route in ROUTES if route.path.startswith("/squash/")]
+        """Being in the group is what lets a friend in, apart from asking to
+        join it, which is for anyone signed in."""
+        squash = [
+            route
+            for route in ROUTES
+            if route.path.startswith("/squash/")
+            and route.path != "/squash/access-requests/me"
+        ]
 
         def gates(route: APIRoute) -> set:
             calls = set()
@@ -169,7 +179,7 @@ class TestRouting:
         assert ROLE_RANK[UserRole.SQUASH] < ROLE_RANK[UserRole.VIEWER]
         assert asking == []
 
-    def test_managing_squash_players_and_venues_is_admin_only(self):
+    def test_managing_squash_players_venues_and_requests_is_admin_only(self):
         admin = {
             route_ids(route)
             for route in ROUTES
@@ -182,6 +192,9 @@ class TestRouting:
             "PUT /squash/players/{player_id}",
             "POST /squash/venues",
             "PUT /squash/venues/{venue_id}",
+            "GET /squash/access-requests",
+            "POST /squash/access-requests/{request_id}/approve",
+            "POST /squash/access-requests/{request_id}/decline",
         }
 
     def test_no_two_routes_share_a_method_and_path(self):

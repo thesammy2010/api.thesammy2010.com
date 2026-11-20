@@ -17,6 +17,7 @@ from src.routers.go_heavier import (
     sessions,
     workouts,
 )
+from src.routers.squash import access_requests as squash_access_requests
 from src.routers.squash import matches as squash_matches
 from src.routers.squash import players as squash_players
 from src.routers.squash import reports as squash_reports
@@ -126,6 +127,13 @@ app = FastAPI(
             ),
         },
         {
+            "name": "squash access requests",
+            "description": (
+                "Squash: someone signed in who isn't a player asking to join "
+                "the group, and admins approving or declining it."
+            ),
+        },
+        {
             "name": "squash ratings and insights",
             "description": (
                 "Squash: the Elo ladder, and what matches scored live show "
@@ -184,7 +192,8 @@ app.include_router(root.admin_router)
 # router. Go Heavier's routes also keep their own minimum role per-route
 # (viewer to read, editor to write) for when it's opened up again, since a
 # single blanket dependency can't tell GET from POST/PUT/DELETE apart. The
-# squash routers are for the group's players, whatever their role.
+# squash routers are for the group's players, whatever their role, apart from
+# asking to join, which is for anyone signed in.
 app.include_router(locations.router)
 app.include_router(exercises.router)
 app.include_router(workouts.router)
@@ -200,3 +209,4 @@ app.include_router(squash_players.router)
 app.include_router(squash_matches.router)
 app.include_router(squash_venues.router)
 app.include_router(squash_reports.router)
+app.include_router(squash_access_requests.router)

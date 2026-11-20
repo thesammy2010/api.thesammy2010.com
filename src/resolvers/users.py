@@ -4,11 +4,12 @@ import uuid
 from typing import Annotated, Any, Callable, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import func, or_
+from sqlalchemy import delete, func, or_
 
 from src.common import ROLE_RANK, UserRole, require_auth
 from src.config import Config
 from src.db import session
+from src.models.squash import AccessRequest as SquashAccessRequest
 from src.models.squash import Player as SquashPlayer
 from src.models.user import User, UserAuditLog
 from src.schemas.users import ListUsersRequest
@@ -235,7 +236,11 @@ def _forget_squash_player(user_id: uuid.UUID) -> None:
     played, so the others' scores, ratings and unfinished matches carry on,
     but as a "Deleted user" who's no longer in the group. Their name and
     email go, and the player is unlinked, so signing in again with the same
-    Google account doesn't bring them back: an admin adds them afresh."""
+    Google account doesn't bring them back: an admin adds them afresh. Any
+    requests they made to join go too."""
+    session.execute(
+        delete(SquashAccessRequest).where(SquashAccessRequest.user_id == user_id)
+    )
     player = (
         session.query(SquashPlayer)
         .filter(SquashPlayer.user_id == user_id)
