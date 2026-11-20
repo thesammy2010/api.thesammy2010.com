@@ -146,30 +146,28 @@ class TestRouting:
         assert squash
         assert ungated == []
 
-    def test_squash_is_closed_to_guests(self):
-        """Anyone with a Google account can sign in and become a guest."""
-        open_to_guests = [
+    def test_squash_needs_no_role(self):
+        """Being a player is what lets someone in, so squash routes ask for
+        no more than a sign-in, unless they're for admins."""
+        gated_by_role = [
             route_ids(route)
             for route in ROUTES
             if route.path.startswith("/squash/")
-            and _required_role(route) not in (UserRole.SQUASH, UserRole.ADMIN)
+            and _required_role(route) not in (UserRole.GUEST, UserRole.ADMIN)
         ]
 
-        assert open_to_guests == []
+        assert gated_by_role == []
 
-    def test_the_squash_role_opens_nothing_else(self):
-        """Squash friends mustn't see Go Heavier, so their role sits below
-        viewer and only /squash asks for it."""
-        outside = [
+    def test_no_route_asks_for_the_squash_role(self):
+        """It's kept only so users given it before still load."""
+        asking = [
             route_ids(route)
             for route in ROUTES
-            if not route.path.startswith("/squash/")
-            and _required_role(route) == UserRole.SQUASH
+            if _required_role(route) == UserRole.SQUASH
         ]
 
-        assert ROLE_RANK[UserRole.GUEST] < ROLE_RANK[UserRole.SQUASH]
         assert ROLE_RANK[UserRole.SQUASH] < ROLE_RANK[UserRole.VIEWER]
-        assert outside == []
+        assert asking == []
 
     def test_managing_squash_players_and_venues_is_admin_only(self):
         admin = {

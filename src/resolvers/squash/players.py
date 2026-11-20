@@ -9,7 +9,7 @@ from src.common import UserRole
 from src.db import session
 from src.models.squash import Player as DBPlayer
 from src.models.user import User
-from src.resolvers.users import require_squash
+from src.resolvers.users import provision_current_user
 from src.schemas.squash.players import PlayerRequest
 
 
@@ -37,15 +37,15 @@ class SquashCaller:
 
 
 def require_squash_player(
-    user: Annotated[User, Depends(require_squash)],
+    user: Annotated[User, Depends(provision_current_user)],
 ) -> SquashCaller:
-    """Lets in a user with the squash role or above who's an active player,
-    or any admin.
+    """Lets in any signed-in user who's an active player, whatever their
+    role, or any admin.
 
-    Anyone with a Google account becomes a guest by signing in, so it takes
-    an admin both giving a friend the squash role, which opens nothing else,
-    and adding them as a player, linked to their user or by their email. An
-    email is linked here the first time they call once they have the role.
+    Being a player is the whole of squash access, so an admin lets a friend
+    in just by adding them with their email. Anyone with a Google account
+    becomes a guest by signing in, which opens nothing else, and an email is
+    linked to that user here the first time they call.
     """
     player = (
         session.query(DBPlayer).filter(DBPlayer.user_id == user.id).one_or_none()

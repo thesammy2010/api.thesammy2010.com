@@ -152,7 +152,6 @@ def require_role(minimum: UserRole) -> Callable[..., User]:
     return dependency
 
 
-require_squash = require_role(UserRole.SQUASH)
 require_viewer = require_role(UserRole.VIEWER)
 require_editor = require_role(UserRole.EDITOR)
 require_admin = require_role(UserRole.ADMIN)

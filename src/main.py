@@ -36,18 +36,19 @@ app = FastAPI(
         "`admin`-only for now. Also **Finance**, a record of personal "
         "spending, under `/finance`, which is `admin`-only. And **Squash**, "
         "the matches a group of friends play, under `/squash`, open to the "
-        "group's players with the `squash` role or above.\n\n"
+        "group's players, whatever their role.\n\n"
         "### Authentication\n"
         "Every endpoint except this documentation requires a Google "
         "Sign-In ID token as a Bearer token. Click **Authorize** below and "
         "paste the token (no need to type `Bearer` yourself).\n\n"
         "### Authorization\n"
-        "Endpoints are gated by role - `guest` < `squash` < `viewer` < "
-        "`editor` < `admin`, each including everything the one below it can "
-        "do, except managing other users, which is `admin`-only. `squash` "
-        "opens only `/squash`, for friends who play but shouldn't see the "
-        "rest. New accounts start as `guest`. `GET /endpoints` maps every "
-        "route to the role it requires."
+        "Endpoints are gated by role - `guest` < `viewer` < `editor` < "
+        "`admin`, each including everything the one below it can do, except "
+        "managing other users, which is `admin`-only. `/squash` isn't gated "
+        "by role: it's open to the group's players, so it reads as `guest`. "
+        "The old `squash` role does nothing more than `guest`. New accounts "
+        "start as `guest`. `GET /endpoints` maps every route to the role it "
+        "requires."
     ),
     openapi_tags=[
         {
@@ -107,8 +108,8 @@ app = FastAPI(
             "name": "squash players",
             "description": (
                 "Squash: the people in the group, and their records. Open to "
-                "the group's players with the squash role or above, and "
-                "admins; only admins add players."
+                "the group's players, whatever their role, and admins; only "
+                "admins add players."
             ),
         },
         {
@@ -183,7 +184,7 @@ app.include_router(root.admin_router)
 # router. Go Heavier's routes also keep their own minimum role per-route
 # (viewer to read, editor to write) for when it's opened up again, since a
 # single blanket dependency can't tell GET from POST/PUT/DELETE apart. The
-# squash routers are for the squash role, once also in the squash group.
+# squash routers are for the group's players, whatever their role.
 app.include_router(locations.router)
 app.include_router(exercises.router)
 app.include_router(workouts.router)
