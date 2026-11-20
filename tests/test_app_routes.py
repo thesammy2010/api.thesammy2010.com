@@ -30,7 +30,14 @@ class TestRouting:
         """A router that is written but never included is silently absent."""
         prefixes = {route.path.split("/")[1] for route in ROUTES}
 
-        assert {"go-heavier", "users", "config", "finance", "squash"} <= prefixes
+        assert {
+            "go-heavier",
+            "users",
+            "config",
+            "finance",
+            "squash",
+            "devices",
+        } <= prefixes
 
     @pytest.mark.parametrize(
         "resource",
@@ -243,6 +250,20 @@ class TestRouting:
 
         assert untagged == []
 
+    def test_devices_are_for_anyone_signed_in(self):
+        """Registering a phone needs no role, but does need a sign-in."""
+        roles = {
+            route_ids(route): _required_role(route)
+            for route in ROUTES
+            if route.path.startswith("/devices")
+        }
+
+        assert roles == {
+            "POST /devices": UserRole.GUEST,
+            "GET /devices": UserRole.GUEST,
+            "DELETE /devices/{token}": UserRole.GUEST,
+        }
+
 
 class TestOpenApi:
     """Test the generated schema, which is the published contract."""
@@ -280,6 +301,7 @@ class TestOpenApi:
             ("/squash/matches/{match_id}/games/{number}", "put"),
             ("/squash/matches/{match_id}/rallies", "post"),
             ("/squash/venues", "post"),
+            ("/devices", "post"),
         ],
     )
     def test_the_write_endpoints_document_a_body(self, path: str, method: str):
