@@ -401,6 +401,11 @@ linked to their user the first time they use `/squash` (or straight away if
 they've already signed in). Only admins add and change players. The old
 `squash` role is no longer needed and does nothing more than `guest`.
 
+When someone deletes their account (or an admin deletes it), their player stays
+in every match they played, so everyone else's scores, ratings and unfinished
+matches carry on, but it's renamed "Deleted user", loses its email and account
+link, and is marked inactive.
+
 Matches are singles or doubles, games to 11 (`points_to`) under point-a-rally
 scoring, played on from 10-all until a side is two clear. `best_of` is
 optional: without it, whoever won more games wins.
