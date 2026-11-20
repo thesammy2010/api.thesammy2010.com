@@ -3,6 +3,7 @@ import uuid
 from typing import List, Optional
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Integer,
@@ -54,6 +55,11 @@ class Match(Base):
     # replaying every game
     winning_side: Mapped[Optional[int]] = mapped_column(SmallInteger(), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    # Only admins and its players see how it went; everyone else just sees
+    # who played
+    is_private: Mapped[bool] = mapped_column(
+        Boolean(), nullable=False, server_default="false"
+    )
     # Goes up by one on every change, so a phone can tell whether what it's
     # showing is current, and a point scored from a stale score is turned away
     version: Mapped[int] = mapped_column(Integer(), nullable=False, server_default="1")

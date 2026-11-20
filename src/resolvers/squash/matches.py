@@ -1,7 +1,8 @@
 import uuid
 from typing import List, Optional, Tuple
 
-from sqlalchemy import exists
+from sqlalchemy import exists, false, or_, true
+from sqlalchemy.sql.elements import ColumnElement
 
 from src.config import Config
 from src.db import session
@@ -61,7 +62,63 @@ def _side_of(match: DBMatch, player_id: Optional[uuid.UUID]) -> Optional[int]:
     )
 
 
-def to_response(match: DBMatch) -> MatchResponse:
+def plays_in(match: DBMatch, caller: SquashCaller) -> bool:
+    return caller.player is not None and any(
+        player.player_id == caller.player.id for player in match.players
+    )
+
+
+def can_see(match: DBMatch, caller: SquashCaller) -> bool:
+    """Whether the caller can see how the match went: anyone for a match
+    that isn't private, else only admins and its players."""
+    return not match.is_private or caller.is_admin or plays_in(match, caller)
+
+
+def visible_to(caller: SquashCaller) -> ColumnElement[bool]:
+    """can_see as a filter, for leaving out the private matches the caller
+    isn't in."""
+    if caller.is_admin:
+        return true()
+    in_match = (
+        exists().where(
+            DBMatchPlayer.match_id == DBMatch.id,
+            DBMatchPlayer.player_id == caller.player.id,
+        )
+        if caller.player is not None
+        else false()
+    )
+    return or_(DBMatch.is_private.is_(False), in_match)
+
+
+def to_response(match: DBMatch, caller: SquashCaller) -> MatchResponse:
+    """The match as the caller may see it: a private one they aren't in
+    shows only who played and when."""
+    if not can_see(match, caller):
+        return MatchResponse(
+            id=match.id,
+            format=match.format,
+            status=match.status,
+            played_at=match.played_at,
+            venue_id=None,
+            venue=None,
+            points_to=match.points_to,
+            best_of=match.best_of,
+            notes=None,
+            is_private=True,
+            hidden=True,
+            players=[
+                MatchPlayerRequest.model_validate(player) for player in match.players
+            ],
+            games=[],
+            side1_games=None,
+            side2_games=None,
+            winning_side=None,
+            serving_side=None,
+            version=match.version,
+            created_by_id=match.created_by_id,
+            created_at=match.created_at,
+            updated_at=match.updated_at,
+        )
     scores = _scores(match)
     side1_games, side2_games = scoring.games_won(scores, match.points_to)
     return MatchResponse(
@@ -74,6 +131,8 @@ def to_response(match: DBMatch) -> MatchResponse:
         points_to=match.points_to,
         best_of=match.best_of,
         notes=match.notes,
+        is_private=match.is_private,
+        hidden=False,
         players=[MatchPlayerRequest.model_validate(player) for player in match.players],
         games=[
             GameResponse(
@@ -99,15 +158,20 @@ def to_response(match: DBMatch) -> MatchResponse:
 
 
 def _check_can_change(match: DBMatch, caller: SquashCaller) -> None:
-    """A match can be changed by whoever arranged it, anyone playing in it, or
-    an admin."""
-    if caller.is_admin or match.created_by_id == caller.user.id:
+    """A match can be changed by anyone playing in it, an admin, or whoever
+    arranged it unless it's private and they aren't in it."""
+    if caller.is_admin or plays_in(match, caller):
         return
-    if caller.player and any(
-        player.player_id == caller.player.id for player in match.players
-    ):
+    if match.is_private:
+        raise NotAllowed("Only the match's players can change a private match")
+    if match.created_by_id == caller.user.id:
         return
     raise NotAllowed("Only the match's players or whoever arranged it can change it")
+
+
+def check_can_see(match: DBMatch, caller: SquashCaller) -> None:
+    if not can_see(match, caller):
+        raise NotAllowed("Only the match's players can see a private match")
 
 
 def _check_players(players: List[MatchPlayerRequest]) -> None:
@@ -165,7 +229,7 @@ def _settle(match: DBMatch, scored: bool = False) -> None:
         match.status = MatchStatus.IN_PROGRESS.value
 
 
-def get_matches(request: ListMatchesRequest) -> List[DBMatch]:
+def get_matches(request: ListMatchesRequest, caller: SquashCaller) -> List[DBMatch]:
     """Lists matches, most recently played first, then those not yet dated."""
     conditions = []
     if request.player_id:
@@ -180,7 +244,10 @@ def get_matches(request: ListMatchesRequest) -> List[DBMatch]:
     if request.format:
         conditions.append(DBMatch.format == request.format.value)
     if request.venue_id:
+        # A private match's venue is hidden, so it's only found by it when
+        # the caller can see it
         conditions.append(DBMatch.venue_id == request.venue_id)
+        conditions.append(visible_to(caller))
     if request.after:
         conditions.append(DBMatch.played_at >= request.after)
     if request.before:
@@ -375,6 +442,7 @@ def merge_matches(
 
         first.status = status
         first.best_of = None
+        first.is_private = first.is_private or second.is_private
         first.venue = first.venue or second.venue
         if second.notes and second.notes != first.notes:
             first.notes = "\n".join(filter(None, (first.notes, second.notes)))

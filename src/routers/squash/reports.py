@@ -4,7 +4,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.resolvers.squash import matches, players, reports
-from src.resolvers.squash.players import require_squash_player
+from src.resolvers.squash.players import SquashCaller, require_squash_player
 from src.routers.squash import parse_uuid
 from src.schemas.squash.insights import (
     MatchInsightsResponse,
@@ -38,7 +38,8 @@ def get_ratings(
     amount, more for beating someone rated higher. A draw moves the
     higher rated side down a little. In doubles a pair plays as the average
     of the two. Worked out afresh from every completed match, so correcting
-    or deleting one updates every rating after it."""
+    or deleting one updates every rating after it. Private matches don't
+    count, since everyone sees the ratings."""
     return reports.get_ratings(request)
 
 
@@ -56,20 +57,30 @@ def get_rating_history(
 def get_player_insights(
     player_id: Annotated[str, uuid.UUID],
     request: Annotated[RatingFormatRequest, Query()],
+    caller: Annotated[SquashCaller, Depends(require_squash_player)],
 ) -> PlayerInsightsResponse:
     """How a player's completed matches went point by point: rallies won on
     and against serve, runs of points, game points taken, comebacks and
     leads lost. Only games scored live have rallies to count, apart from
-    deuce games, which any final score shows."""
-    return reports.get_player_insights(_player_id(player_id), request.format)
+    deuce games, which any final score shows. Private matches only count
+    when the caller played in them or is an admin."""
+    return reports.get_player_insights(_player_id(player_id), request.format, caller)
 
 
 @router.get("/matches/{match_id}/insights", response_model=MatchInsightsResponse)
-def get_match_insights(match_id: Annotated[str, uuid.UUID]) -> MatchInsightsResponse:
+def get_match_insights(
+    match_id: Annotated[str, uuid.UUID],
+    caller: Annotated[SquashCaller, Depends(require_squash_player)],
+) -> MatchInsightsResponse:
     """A match point by point, each side and each game: rallies won on and
     against serve, runs, leads, game points and comebacks. Works while it's
-    being played too."""
+    being played too. 403 for a private match the caller isn't in."""
     match = matches.get_match(parse_uuid(match_id, "match"))
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
+    if not matches.can_see(match, caller):
+        raise HTTPException(
+            status_code=403,
+            detail="Only the match's players can see a private match",
+        )
     return reports.get_match_insights(match)
