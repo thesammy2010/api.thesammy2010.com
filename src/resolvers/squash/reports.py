@@ -14,6 +14,8 @@ from src.models.squash import Match as DBMatch
 from src.models.squash import MatchPlayer as DBMatchPlayer
 from src.models.squash import Player as DBPlayer
 from src.resolvers.squash import elo, insights, scoring
+from src.resolvers.squash.matches import visible_to
+from src.resolvers.squash.players import SquashCaller
 from src.schemas.squash.enums import MatchFormat, MatchStatus
 from src.schemas.squash.insights import (
     GameInsightsResponse,
@@ -27,10 +29,15 @@ from src.schemas.squash.insights import (
 
 
 def _completed(
-    format: Optional[MatchFormat], player_id: Optional[uuid.UUID] = None
+    format: Optional[MatchFormat],
+    player_id: Optional[uuid.UUID] = None,
+    caller: Optional[SquashCaller] = None,
 ) -> List[DBMatch]:
-    """Completed matches in the order played, undated ones last."""
+    """Completed matches in the order played, undated ones last. Private
+    ones are left out unless the caller can see them, and always without a
+    caller, since ratings are shared and would give a result away."""
     conditions = [DBMatch.status == MatchStatus.COMPLETED.value]
+    conditions.append(visible_to(caller) if caller else DBMatch.is_private.is_(False))
     if format:
         conditions.append(DBMatch.format == format.value)
     if player_id:
@@ -99,9 +106,9 @@ def get_rating_history(
 
 
 def get_player_insights(
-    player_id: uuid.UUID, format: Optional[MatchFormat]
+    player_id: uuid.UUID, format: Optional[MatchFormat], caller: SquashCaller
 ) -> PlayerInsightsResponse:
-    found = insights.player_insights(_completed(format, player_id), player_id)
+    found = insights.player_insights(_completed(format, player_id, caller), player_id)
     return PlayerInsightsResponse(
         player_id=player_id,
         games_scored_live=found.games_scored_live,

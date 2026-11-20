@@ -85,6 +85,13 @@ class MatchRequest(BaseModel):
         default=None,
     )
     notes: Optional[str] = Field(max_length=512, default=None)
+    is_private: bool = Field(
+        description="Whether only admins and the match's players can see how "
+        "it went. Everyone else sees who played and when, but not the venue, "
+        "notes, games or result, and it's left out of their stats and of the "
+        "ratings",
+        default=False,
+    )
     players: List[MatchPlayerRequest] = Field(
         description="One player a side for singles, two for doubles"
     )
@@ -219,13 +226,24 @@ class MatchResponse(BaseModel):
     points_to: int
     best_of: Optional[int]
     notes: Optional[str]
+    is_private: bool
+    hidden: bool = Field(
+        description="True for a private match the caller isn't in, when the "
+        "venue, notes, games and result are left out: null, or empty for "
+        "games. Who played and when still show"
+    )
     players: List[MatchPlayerRequest]
     games: List[GameResponse]
-    side1_games: int = Field(description="Games won by side 1")
-    side2_games: int = Field(description="Games won by side 2")
+    side1_games: Optional[int] = Field(
+        description="Games won by side 1. Null when hidden"
+    )
+    side2_games: Optional[int] = Field(
+        description="Games won by side 2. Null when hidden"
+    )
     winning_side: Optional[int] = Field(
         description="The side that won, once the match is completed. Null "
-        "for a draw, which only a match without best_of can end in"
+        "for a draw, which only a match without best_of can end in, or when "
+        "hidden"
     )
     serving_side: Optional[int] = Field(
         description="The side to serve next: whoever won the last rally, or "

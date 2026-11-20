@@ -463,6 +463,13 @@ history and can be undone, but adds no point and the same side serves again. A
 stroke or a no let is a point like any other, with the call and who appealed
 recorded.
 
+A match with `"is_private": true` is only seen in full by admins and its
+players. Everyone else still sees it listed with who played and when, but with
+`hidden` set and no venue, notes, games or result, gets a 403 for its rallies
+and insights, and doesn't have it counted in their stats or head-to-heads.
+Private matches never count towards the ratings, since everyone sees those.
+Only its players and admins can change one, not whoever arranged it.
+
 Two matches between the same players, such as 2 games recorded and then 1
 more, can be merged with `POST /squash/matches/{id}/merge`
 (`{"match_id": "<the other>"}`). The one played first is kept with the other's

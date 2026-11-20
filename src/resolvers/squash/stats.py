@@ -13,6 +13,8 @@ from src.db import session
 from src.models.squash import Match as DBMatch
 from src.models.squash import MatchPlayer as DBMatchPlayer
 from src.resolvers.squash import scoring
+from src.resolvers.squash.matches import visible_to
+from src.resolvers.squash.players import SquashCaller
 from src.schemas.squash.enums import MatchFormat, MatchStatus
 from src.schemas.squash.players import (
     HeadToHeadResponse,
@@ -21,11 +23,14 @@ from src.schemas.squash.players import (
 )
 
 
-def _completed_with(*player_ids: uuid.UUID) -> List[DBMatch]:
+def _completed_with(caller: SquashCaller, *player_ids: uuid.UUID) -> List[DBMatch]:
+    """Completed matches with all of the players, leaving out private ones
+    the caller isn't in."""
     return (
         session.query(DBMatch)
         .filter(
             DBMatch.status == MatchStatus.COMPLETED.value,
+            visible_to(caller),
             *[
                 exists().where(
                     DBMatchPlayer.match_id == DBMatch.id,
@@ -53,8 +58,8 @@ def win_rate(won: int, lost: int) -> Optional[float]:
     return round(won / (won + lost), 3)
 
 
-def get_player_stats(player_id: uuid.UUID) -> PlayerStatsResponse:
-    matches = _completed_with(player_id)
+def get_player_stats(player_id: uuid.UUID, caller: SquashCaller) -> PlayerStatsResponse:
+    matches = _completed_with(caller, player_id)
     return PlayerStatsResponse(
         player_id=player_id,
         **record(matches, player_id).model_dump(),
@@ -106,11 +111,11 @@ def record(matches: Iterable[DBMatch], player_id: uuid.UUID) -> PlayerRecord:
 
 
 def get_head_to_head(
-    player_id: uuid.UUID, opponent_id: uuid.UUID
+    player_id: uuid.UUID, opponent_id: uuid.UUID, caller: SquashCaller
 ) -> HeadToHeadResponse:
     """Matches the two played on opposite sides, doubles included."""
     played = won = drawn = games_won = games_lost = 0
-    for match in _completed_with(player_id, opponent_id):
+    for match in _completed_with(caller, player_id, opponent_id):
         side = _side(match, player_id)
         if side == _side(match, opponent_id):
             continue

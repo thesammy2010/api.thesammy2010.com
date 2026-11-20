@@ -60,9 +60,14 @@ def get_player(player_id: Annotated[str, uuid.UUID]) -> DBPlayer:
 
 
 @router.get("/players/{player_id}/stats", response_model=PlayerStatsResponse)
-def get_player_stats(player_id: Annotated[str, uuid.UUID]) -> PlayerStatsResponse:
-    """A player's record across their completed matches, doubles included."""
-    return stats.get_player_stats(_player(player_id).id)
+def get_player_stats(
+    player_id: Annotated[str, uuid.UUID],
+    caller: Annotated[SquashCaller, Depends(require_squash_player)],
+) -> PlayerStatsResponse:
+    """A player's record across their completed matches, doubles included.
+    Private matches only count when the caller played in them or is an
+    admin."""
+    return stats.get_player_stats(_player(player_id).id, caller)
 
 
 @router.get(
@@ -70,10 +75,15 @@ def get_player_stats(player_id: Annotated[str, uuid.UUID]) -> PlayerStatsRespons
     response_model=HeadToHeadResponse,
 )
 def get_head_to_head(
-    player_id: Annotated[str, uuid.UUID], opponent_id: Annotated[str, uuid.UUID]
+    player_id: Annotated[str, uuid.UUID],
+    opponent_id: Annotated[str, uuid.UUID],
+    caller: Annotated[SquashCaller, Depends(require_squash_player)],
 ) -> HeadToHeadResponse:
-    """Two players' completed matches on opposite sides of the court."""
-    return stats.get_head_to_head(_player(player_id).id, _player(opponent_id).id)
+    """Two players' completed matches on opposite sides of the court, private
+    ones only when the caller played in them or is an admin."""
+    return stats.get_head_to_head(
+        _player(player_id).id, _player(opponent_id).id, caller
+    )
 
 
 @router.post(

@@ -34,7 +34,7 @@ Caller = Annotated[SquashCaller, Depends(require_squash_player)]
 T = TypeVar("T")
 
 
-def _handle(call: Callable[[], T]) -> T:
+def _handle(call: Callable[[], T], caller: SquashCaller) -> T:
     """Turns the resolvers' errors into their HTTP statuses."""
     try:
         return call()
@@ -50,23 +50,28 @@ def _handle(call: Callable[[], T]) -> T:
             status_code=409,
             detail={
                 "detail": str(e),
-                "match": jsonable_encoder(matches.to_response(e.match)),
+                "match": jsonable_encoder(matches.to_response(e.match, caller)),
             },
         )
 
 
-def _found(match) -> MatchResponse:
+def _found(match, caller: SquashCaller) -> MatchResponse:
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
-    return matches.to_response(match)
+    return matches.to_response(match, caller)
 
 
 @router.get("/matches", response_model=List[MatchResponse])
 def get_matches(
-    request: Annotated[ListMatchesRequest, Query()],
+    request: Annotated[ListMatchesRequest, Query()], caller: Caller
 ) -> List[MatchResponse]:
-    """Lists matches, most recently played first, then any not yet dated."""
-    return [matches.to_response(match) for match in matches.get_matches(request)]
+    """Lists matches, most recently played first, then any not yet dated. A
+    private match the caller isn't in shows only who played and when, with
+    `hidden` set."""
+    return [
+        matches.to_response(match, caller)
+        for match in matches.get_matches(request, caller)
+    ]
 
 
 @router.get(
@@ -76,6 +81,7 @@ def get_matches(
 )
 def get_match(
     match_id: Annotated[str, uuid.UUID],
+    caller: Caller,
     since_version: Annotated[
         Optional[int],
         Query(
@@ -85,18 +91,21 @@ def get_match(
     ] = None,
 ):
     """A match with its games. To follow one live, poll this every second or
-    two with `since_version`."""
+    two with `since_version`. A private match the caller isn't in shows only
+    who played and when, with `hidden` set."""
     match = matches.get_match(parse_uuid(match_id, "match"))
     if match and since_version is not None and match.version == since_version:
         return Response(status_code=204)
-    return _found(match)
+    return _found(match, caller)
 
 
 @router.post("/matches", response_model=MatchResponse)
 def create_match(request: MatchRequest, caller: Caller) -> MatchResponse:
     """Arranges a match, or records one already played. Any player can,
     including for a match they aren't in. 404 if a player doesn't exist."""
-    return _found(_handle(lambda: matches.create_match(request, caller)))
+    return _found(
+        _handle(lambda: matches.create_match(request, caller), caller), caller
+    )
 
 
 @router.put("/matches/{match_id}", response_model=MatchResponse)
@@ -106,9 +115,13 @@ def update_match(
     """Replaces a match's fields and players, keeping its games. Set
     `status` to `completed` once the games decide it, which is 400 until
     they do. 403 unless the caller plays in it, arranged it, or is an
+    admin, and for a private match, unless they play in it or are an
     admin."""
     match_uuid = parse_uuid(match_id, "match")
-    return _found(_handle(lambda: matches.update_match(match_uuid, request, caller)))
+    return _found(
+        _handle(lambda: matches.update_match(match_uuid, request, caller), caller),
+        caller,
+    )
 
 
 @router.post("/matches/{match_id}/complete", response_model=MatchResponse)
@@ -128,14 +141,17 @@ def complete_match(
     won, or one already completed or cancelled. 409 if `version` isn't
     current."""
     match_uuid = parse_uuid(match_id, "match")
-    return _found(_handle(lambda: matches.complete_match(match_uuid, version, caller)))
+    return _found(
+        _handle(lambda: matches.complete_match(match_uuid, version, caller), caller),
+        caller,
+    )
 
 
 @router.delete("/matches/{match_id}", status_code=204)
 def delete_match(match_id: Annotated[str, uuid.UUID], caller: Caller) -> Response:
     """Deletes a match and its games."""
     match_uuid = parse_uuid(match_id, "match")
-    if not _handle(lambda: matches.delete_match(match_uuid, caller)):
+    if not _handle(lambda: matches.delete_match(match_uuid, caller), caller):
         raise HTTPException(status_code=404, detail="Match not found")
     return Response(status_code=204)
 
@@ -156,7 +172,10 @@ def merge_matches(
     cancelled match, or when the earlier one's last game is unfinished. 403
     unless the caller can change both."""
     match_uuid = parse_uuid(match_id, "match")
-    return _found(_handle(lambda: matches.merge_matches(match_uuid, request, caller)))
+    return _found(
+        _handle(lambda: matches.merge_matches(match_uuid, request, caller), caller),
+        caller,
+    )
 
 
 @router.put("/matches/{match_id}/games/{number}", response_model=MatchResponse)
@@ -175,7 +194,10 @@ def set_game(
     reopens it. 400 for a score that couldn't happen, such as 12-5 in a game
     to 11 or a game after the match was won."""
     match_uuid = parse_uuid(match_id, "match")
-    return _found(_handle(lambda: matches.set_game(match_uuid, number, game, caller)))
+    return _found(
+        _handle(lambda: matches.set_game(match_uuid, number, game, caller), caller),
+        caller,
+    )
 
 
 @router.delete("/matches/{match_id}/games/last", response_model=MatchResponse)
@@ -184,15 +206,21 @@ def delete_last_game(
 ) -> MatchResponse:
     """Removes the latest game, such as one added by mistake."""
     match_uuid = parse_uuid(match_id, "match")
-    return _found(_handle(lambda: matches.delete_last_game(match_uuid, caller)))
+    return _found(
+        _handle(lambda: matches.delete_last_game(match_uuid, caller), caller), caller
+    )
 
 
 @router.get("/matches/{match_id}/rallies", response_model=List[RallyResponse])
-def get_rallies(match_id: Annotated[str, uuid.UUID]) -> List[RallyResponse]:
-    """Every rally of the match in order, with the score after each."""
+def get_rallies(
+    match_id: Annotated[str, uuid.UUID], caller: Caller
+) -> List[RallyResponse]:
+    """Every rally of the match in order, with the score after each. 403 for
+    a private match the caller isn't in."""
     match = matches.get_match(parse_uuid(match_id, "match"))
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
+    _handle(lambda: matches.check_can_see(match, caller), caller)
     return matches.get_rallies(match)
 
 
@@ -208,7 +236,9 @@ def add_rally(
     completed or cancelled, or if `server_id` isn't on the side whose serve
     it was."""
     match_uuid = parse_uuid(match_id, "match")
-    return _found(_handle(lambda: matches.add_rally(match_uuid, rally, caller)))
+    return _found(
+        _handle(lambda: matches.add_rally(match_uuid, rally, caller), caller), caller
+    )
 
 
 @router.delete("/matches/{match_id}/rallies/last", response_model=MatchResponse)
@@ -222,4 +252,6 @@ def undo_rally(
     is now, if `version` isn't current, so two people undoing at once take
     back one point."""
     match_uuid = parse_uuid(match_id, "match")
-    return _found(_handle(lambda: matches.undo_rally(match_uuid, version, caller)))
+    return _found(
+        _handle(lambda: matches.undo_rally(match_uuid, version, caller), caller), caller
+    )
