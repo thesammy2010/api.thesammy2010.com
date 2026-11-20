@@ -9,6 +9,7 @@ from sqlalchemy import func, or_
 from src.common import ROLE_RANK, UserRole, require_auth
 from src.config import Config
 from src.db import session
+from src.models.squash import Player as SquashPlayer
 from src.models.user import User, UserAuditLog
 from src.schemas.users import ListUsersRequest
 
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 # authenticated request resolves the caller here, so stamping it on each one
 # would turn every read into a write behind the shared session's lock.
 LAST_SIGNED_IN_AT_PRECISION = datetime.timedelta(minutes=5)
+
+# What a squash player is called once their account's been deleted
+DELETED_PLAYER_NAME = "Deleted user"
 
 
 def _log_audit(
@@ -226,13 +230,34 @@ def create_user_admin(
     return user
 
 
+def _forget_squash_player(user_id: uuid.UUID) -> None:
+    """Leaves the user's squash player, if they had one, in every match they
+    played, so the others' scores, ratings and unfinished matches carry on,
+    but as a "Deleted user" who's no longer in the group. Their name and
+    email go, and the player is unlinked, so signing in again with the same
+    Google account doesn't bring them back: an admin adds them afresh."""
+    player = (
+        session.query(SquashPlayer)
+        .filter(SquashPlayer.user_id == user_id)
+        .one_or_none()
+    )
+    if player is None:
+        return
+    player.name = DELETED_PLAYER_NAME
+    player.email = None
+    player.user_id = None
+    player.is_active = False
+
+
 def delete_user_admin(actor: User, user_id: uuid.UUID) -> Optional[User]:
     """Soft-deletes a user: marks them deleted rather than removing the row,
-    so their audit trail and anything they created stay intact."""
+    so their audit trail and anything they created stay intact. Their squash
+    player stays in their matches, as a "Deleted user"."""
     user = session.get(User, user_id)
     if not user or user.deleted_at is not None:
         return None
     user.deleted_at = func.now()
+    _forget_squash_player(user.id)
     _log_audit(actor_id=actor.id, target_user_id=user.id, action="deleted")
     session.commit()
     return user

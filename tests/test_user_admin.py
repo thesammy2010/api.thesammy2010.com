@@ -17,8 +17,10 @@ from sqlalchemy.exc import IntegrityError
 
 from src.common import UserRole
 from src.db import session
+from src.models.squash import Player
 from src.models.user import User, UserAuditLog
 from src.resolvers.users import (
+    DELETED_PLAYER_NAME,
     LAST_SIGNED_IN_AT_PRECISION,
     create_user_admin,
     create_user_in_db,
@@ -614,6 +616,43 @@ class TestSelfDelete:
             )
         ).one()
         assert entry.actor_id == user.id
+
+
+class TestDeletingASquashPlayer:
+    """A deleted user's squash player stays in their matches, so nobody
+    else's are broken, but no longer says who they were."""
+
+    @pytest.fixture
+    def player(self, track_users: List[uuid.UUID]) -> Iterator[Player]:
+        email = email_address()
+        user = create_user_in_db({"sub": google_account_id(), "email": email})
+        track_users.append(user.id)
+        player = Player(name="Alex", email=email, user_id=user.id)
+        session.add(player)
+        session.commit()
+        yield player
+        session.execute(delete(Player).where(Player.id == player.id))
+        session.commit()
+
+    def test_the_player_is_kept_as_a_deleted_user(self, player: Player):
+        user_id, player_id = player.user_id, player.id
+
+        delete_user_admin(actor=session.get(User, user_id), user_id=user_id)
+
+        kept = session.get(Player, player_id)
+        assert kept is not None
+        assert kept.name == DELETED_PLAYER_NAME
+        assert kept.email is None
+        assert kept.user_id is None
+        assert not kept.is_active
+
+    def test_a_user_without_a_player_is_deleted_as_before(
+        self, admin_user: User, track_users: List[uuid.UUID]
+    ):
+        user = create_user_in_db({"sub": google_account_id()})
+        track_users.append(user.id)
+
+        assert delete_user_admin(actor=admin_user, user_id=user.id) is not None
 
 
 class TestGoogleAccountIdConstraint:
