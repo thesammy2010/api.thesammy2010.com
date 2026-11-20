@@ -9,6 +9,7 @@ from sqlalchemy import delete, func, or_
 from src.common import ROLE_RANK, UserRole, require_auth
 from src.config import Config
 from src.db import session
+from src.models.device import Device
 from src.models.squash import AccessRequest as SquashAccessRequest
 from src.models.squash import Player as SquashPlayer
 from src.models.user import User, UserAuditLog
@@ -257,11 +258,14 @@ def _forget_squash_player(user_id: uuid.UUID) -> None:
 def delete_user_admin(actor: User, user_id: uuid.UUID) -> Optional[User]:
     """Soft-deletes a user: marks them deleted rather than removing the row,
     so their audit trail and anything they created stay intact. Their squash
-    player stays in their matches, as a "Deleted user"."""
+    player stays in their matches, as a "Deleted user", and their phones are
+    forgotten."""
     user = session.get(User, user_id)
     if not user or user.deleted_at is not None:
         return None
     user.deleted_at = func.now()
+    # Nothing's sent to an account that's gone
+    session.execute(delete(Device).where(Device.user_id == user.id))
     _forget_squash_player(user.id)
     _log_audit(actor_id=actor.id, target_user_id=user.id, action="deleted")
     session.commit()

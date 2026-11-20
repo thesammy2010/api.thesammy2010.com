@@ -5,6 +5,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from src.models import metadata
+from src.models.device import Device  # noqa: F401
 from src.models.finance import Budget  # noqa: F401
 from src.models.finance import Category  # noqa: F401
 from src.models.finance import Merchant  # noqa: F401

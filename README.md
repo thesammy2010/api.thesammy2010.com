@@ -42,6 +42,15 @@ curl -X PATCH localhost:8000/users/$USER_ID/role -H "Authorization: Bearer $TOKE
   -H 'Content-Type: application/json' -d '{"role": "viewer"}' | jq
 ```
 
+### Devices
+
+The apps register each phone for notifications with `POST /devices`: its APNs
+token, the app's bundle ID, and `sandbox` for a build run from Xcode or
+`production` for TestFlight. They send it on every launch, and
+`DELETE /devices/{token}` on signing out. A token already registered to someone
+else moves to whoever registers it, and deleting an account forgets its phones.
+Any signed-in user can register; nothing is sent to them yet.
+
 A role changed straight in the database only takes effect after a restart,
 since the app's shared session caches users. Change roles through the API.
 

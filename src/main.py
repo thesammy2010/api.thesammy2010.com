@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.db import db_lock, session
-from src.routers import root
+from src.routers import devices, root
 from src.routers.finance import budgets as finance_budgets
 from src.routers.finance import migrations as finance_migrations
 from src.routers.finance import references as finance_references
@@ -55,6 +55,13 @@ app = FastAPI(
         {
             "name": "users",
             "description": "Sign-in and the caller's own account.",
+        },
+        {
+            "name": "devices",
+            "description": (
+                "The caller's phones, registered for notifications. For "
+                "anyone signed in."
+            ),
         },
         {
             "name": "admin",
@@ -187,6 +194,7 @@ async def guard_shared_db_session(request: Request, call_next):
 # for a caller with a valid Google token who has no User row yet.
 app.include_router(root.router)
 app.include_router(root.admin_router)
+app.include_router(devices.router)
 
 # The Go Heavier and finance routers are admin-only throughout, set on each
 # router. Go Heavier's routes also keep their own minimum role per-route
