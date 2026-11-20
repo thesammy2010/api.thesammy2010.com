@@ -16,7 +16,6 @@ from src.resolvers.users import (
     list_users,
     require_admin,
     require_editor,
-    require_squash,
     require_viewer,
     set_user_role,
 )
@@ -83,16 +82,14 @@ def _required_role(route: APIRoute) -> Optional[UserRole]:
 
     collect(route.dependant)
 
-    # Squash routes are for the squash role, once also in the group, which
-    # isn't a role, but managing the players is admin-only
+    # Squash routes are for the group's players, which isn't a role, so they
+    # read as guest, but managing the players and venues is admin-only
     if require_admin in calls or require_squash_admin in calls:
         return UserRole.ADMIN
     if require_editor in calls:
         return UserRole.EDITOR
     if require_viewer in calls:
         return UserRole.VIEWER
-    if require_squash in calls:
-        return UserRole.SQUASH
     if require_auth in calls:
         return UserRole.GUEST
     return None

@@ -22,7 +22,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 class UserRole(str, enum.Enum):
     GUEST = "guest"
-    # Plays squash: /squash only, and only once they're also in the group
+    # No longer needed: being a squash player is what opens /squash, and no
+    # route asks for this. Kept so users given it before still load
     SQUASH = "squash"
     VIEWER = "viewer"
     EDITOR = "editor"

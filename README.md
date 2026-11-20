@@ -23,13 +23,14 @@ role:
 | role | can use |
 | --- | --- |
 | `guest` | their own account, nothing else |
-| `squash` | `/squash`, once they're also added as a player |
-| `viewer` | as `squash`, and reading anything that allows `viewer` |
+| `viewer` | reading anything that allows `viewer` |
 | `editor` | as `viewer`, and writing |
 | `admin` | everything, including managing users |
 
-Go Heavier and Finance are `admin`-only for now. `GET /endpoints` maps every
-route to the role it needs.
+Go Heavier and Finance are `admin`-only for now. `/squash` doesn't go by role:
+it's open to anyone added as a squash player (see [Squash](#squash)), so a
+friend who only plays squash stays a `guest`. The old `squash` role does nothing
+more than `guest`. `GET /endpoints` maps every route to the role it needs.
 
 ```bash
 # sign in, or see your account: {"id": "...", "role": "guest"}
@@ -38,7 +39,7 @@ curl -X POST localhost:8000/users -H "Authorization: Bearer $TOKEN" | jq
 # as an admin: list users, and give one a role
 curl localhost:8000/admin/users -H "Authorization: Bearer $TOKEN" | jq
 curl -X PATCH localhost:8000/users/$USER_ID/role -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' -d '{"role": "squash"}' | jq
+  -H 'Content-Type: application/json' -d '{"role": "viewer"}' | jq
 ```
 
 A role changed straight in the database only takes effect after a restart,
@@ -391,14 +392,14 @@ that sheet to write the ids back.
 
 ## Squash
 
-Everything under `/squash` is for the squash group's players with the `squash`
-role or above. `squash` sits between `guest` and `viewer` and opens nothing but
-`/squash`, so friends can't read Go Heavier. Signing in only makes someone a
-`guest`, so an admin lets each friend in by giving them the `squash` role
-(`PATCH /users/{id}/role`) and adding them with `POST /squash/players`, giving
-their Google email. They're linked to their user the first time they use
-`/squash` with the role (or straight away if they've already signed in). Only
-admins add and change players.
+Everything under `/squash` is for the squash group's players, whatever their
+role, and admins. Being a player is the whole of it: an admin lets a friend in
+just by adding them with `POST /squash/players`, giving their Google email, and
+takes them out by marking the player inactive. Signing in only makes someone a
+`guest`, which opens nothing else, so friends can't read Go Heavier. They're
+linked to their user the first time they use `/squash` (or straight away if
+they've already signed in). Only admins add and change players. The old
+`squash` role is no longer needed and does nothing more than `guest`.
 
 Matches are singles or doubles, games to 11 (`points_to`) under point-a-rally
 scoring, played on from 10-all until a side is two clear. `best_of` is
